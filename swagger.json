@@ -1,0 +1,762 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Financial Control Documentation",
+    "description": "Documentation with routs paramters",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "api/category/create": {
+      "post": {
+        "tags": ["Calc"],
+        "summary": "Create category",
+        "description": "This route is used to create categories",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/definitions/QuickProposal"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/definitions/QuickProposalResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/availableprices/{env}": {
+      "post": {
+        "tags": ["List Softwares"],
+        "summary": "Available Prices",
+        "description": "List available price by environment",
+        "parameters": [
+          {
+            "name": "env",
+            "in": "path",
+            "description": "Environment",
+            "required:": true,
+            "schema": {
+              "type": "string",
+              "example": "Sysplex"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "swList": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "productID": { "type": "string", "example": "5650DB2" },
+                        "eeID": { "type": "string", "example": "S017GWJ" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "productID": {
+                        "type": "string",
+                        "example": "5650DB2"
+                      },
+                      "eeID": {
+                        "type": "string",
+                        "example": "S017GWJ"
+                      },
+                      "availablePrices": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "example": "AWLC"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Environment not found!"
+                    },
+                    "rawMessage": {
+                      "type": "string",
+                      "example": ""
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/listsoftware": {
+      "get": {
+        "tags": ["List Softwares"],
+        "summary": "List Softwares",
+        "description": "List softwares by enviroment",
+        "parameters": [
+          {
+            "name": "price",
+            "in": "query",
+            "description": "Environment",
+            "required:": true,
+            "schema": {
+              "type": "string",
+              "example": "Standalone"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "productID": {
+                        "type": "string",
+                        "example": "5650DB2"
+                      },
+                      "eeID": {
+                        "type": "string",
+                        "example": "S017GWJ"
+                      },
+                      "eeDesc": {
+                        "type": "string",
+                        "example": "DB2 10 for z/OS"
+                      },
+                      "swOsFlag": {
+                        "type": "number",
+                        "example": 0
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Environment not found!"
+                    },
+                    "rawMessage": {
+                      "type": "string",
+                      "example": ""
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/save/quickProposal": {
+      "post": {
+        "tags": ["Save Load"],
+        "summary": "Save Quick Proposal",
+        "description": "Save Quick Proposal configuration",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/definitions/QuickProposalSave"
+              }
+            }
+          }
+        },
+       
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/definitions/QuickProposalSaveResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/load/quickProposal": {
+      "post": {
+        "tags": ["Save Load"],
+        "summary": "Load Quick Proposal",
+        "description": "Load Quick Proposal configuration",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filepath": {
+                    "type": "string",
+                    "example": "/Users/matheusgoncalvessantos/Downloads/life.zpr"
+                  }
+                }
+              }
+            }
+          }
+        },       
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/definitions/QuickProposalResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "QuickProposal": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "properties": {
+            "zPricerVersion": {
+              "type": "string",
+              "example": "3.3.3"
+            },
+            "date": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        "systems": {
+          "type": "object",
+          "properties": {
+            "tto": {
+              "type": "object",
+              "properties": {
+                "ttoOverride": {
+                  "type": "number",
+                  "format": "double",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "example": 0.4
+                },
+                "ttoDiscount": {
+                  "type": "number",
+                  "format": "float",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "example": 0.35
+                },
+                "overrideFlag": {
+                  "type": "boolean"
+                },
+                "ttoLabel": {
+                  "example": "TU9"
+                },
+                "ttoDesc": {
+                  "type": "string",
+                  "example": "2"
+                }
+              }
+            },
+            "hwList": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "machineNum": { "type": "string", "example": "2059-B17" },
+                  "machineDesc": { "type": "string", "example": "Enterprise Aggregation Unit" },
+                  "machineSerial": { "type": "string", "example": "" },
+                  "machineCapacity": { "type": "number", "example": 25117 },
+                  "machineEngQty": { "type": "number", "example": 0 },
+                  "swLevPg": { "type": "string", "example": "" },
+                  "aggregation": { "type": "string", "example": "ipla" },
+                  "machineID": {
+                    "type": "string",
+                    "example": "d89889ce-b2f7-4b86-aede-d75420f8cad5"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "quickProposal": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "environmentType": { "type": "string", "example": "Standalone" },
+
+              "swList": {
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "productID": { "type": "string", "example": "5650DB2" },
+                    "eeID": { "type": "string", "example": "S017GWJ" },
+                    "eeDesc": { "type": "string", "example": "DB2 12 for z/OS" },
+                    "priceType": { "type": "string", "example": "AWLC" },
+                    "priceCalc": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "period": { "type": "string", "example": "2022-08-27" },
+                          "msus": { "type": "number", "example": 9887 }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "duplicatedSoftware": { "type": "array", "example": [] },
+              "information": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "QuickProposalResponse": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "properties": {
+            "zPricerVersion": {
+              "type": "string"
+            },
+            "date": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        "systems": {
+          "type": "object",
+          "properties": {
+            "tto": {
+              "type": "object",
+              "properties": {
+                "ttoOverride": {
+                  "type": "number",
+                  "format": "double",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "example": 0.4
+                },
+                "ttoDiscount": {
+                  "type": "number",
+                  "format": "float",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "example": 0.35
+                },
+                "overrideFlag": {
+                  "type": "boolean"
+                },
+                "ttoLabel": {
+                  "example": "TU9"
+                },
+                "ttoDesc": {
+                  "type": "string",
+                  "example": "2"
+                }
+              }
+            },
+            "hwList": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "machineNum": { "type": "string", "example": "2059-B17" },
+                  "machineDesc": { "type": "string", "example": "Enterprise Aggregation Unit" },
+                  "machineSerial": { "type": "string", "example": "" },
+                  "machineCapacity": { "type": "number", "example": 25117 },
+                  "machineEngQty": { "type": "number", "example": 0 },
+                  "swLevPg": { "type": "string", "example": "" },
+                  "aggregation": { "type": "string", "example": "ipla" },
+                  "machineID": {
+                    "type": "string",
+                    "example": "d89889ce-b2f7-4b86-aede-d75420f8cad5"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "qpt": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "environmentType": { "type": "string", "example": "Standalone" },
+              "swList": {
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "productID": { "type": "string", "example": "5650DB2" },
+                    "eeID": { "type": "string", "example": "S017GWJ" },
+                    "eeDesc": { "type": "string", "example": "DB2 12 for z/OS" },
+                    "priceType": { "type": "string", "example": "AWLC" },
+                    "priceCalc": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "period": { "type": "string", "example": "2022-08-27" },
+                          "msus": { "type": "number", "example": 9887 },
+                          "billingPrice": { "type": "number", "example": 1223.543 },
+                          "listPrice": { "type": "number", "example": 144566.9 }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "totalmsus": { "type": "number", "example": 9887 },
+              "totalbillingPrice": { "type": "number", "example": 1223.543 },
+              "totallistPrice": { "type": "number", "example": 144566.9 },
+              "duplicatedSoftware": { "type": "array", "example": [] },
+              "information": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "QuickProposalSave": {
+      "type": "object",
+      "properties": {
+        "filepath": {
+          "type": "string",
+          "example": "/Users/matheusgoncalvessantos/Downloads/life.zpr"
+        },
+        "header": {
+          "type": "object",
+          "properties": {
+            "zPricerVersion": {
+              "type": "string",
+              "example": "3.3.3"
+            },
+            "date": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        "customerInfo": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "customerNumber": {
+                "type": "string"
+              },
+              "customerName": {
+                "type": "string"
+              },
+              "customerLocation": {
+                "type": "string"
+              },
+              "serialNumber": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "systems": {
+          "type": "object",
+          "properties": {
+            "tto": {
+              "type": "object",
+              "properties": {
+                "ttoOverride": {
+                  "type": "number",
+                  "format": "double",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "example": 0.4
+                },
+                "ttoDiscount": {
+                  "type": "number",
+                  "format": "float",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "example": 0.35
+                },
+                "overrideFlag": {
+                  "type": "boolean"
+                },
+                "ttoLabel": {
+                  "example": "TU9"
+                },
+                "ttoDesc": {
+                  "type": "string",
+                  "example": "2"
+                }
+              }
+            },
+            "hwList": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "machineNum": { "type": "string", "example": "2059-B17" },
+                  "machineDesc": { "type": "string", "example": "Enterprise Aggregation Unit" },
+                  "machineSerial": { "type": "string", "example": "" },
+                  "machineCapacity": { "type": "number", "example": 25117 },
+                  "machineEngQty": { "type": "number", "example": 0 },
+                  "swLevPg": { "type": "string", "example": "" },
+                  "aggregation": { "type": "string", "example": "ipla" },
+                  "machineID": {
+                    "type": "string",
+                    "example": "d89889ce-b2f7-4b86-aede-d75420f8cad5"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "quickProposal": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "environmentType": { "type": "string", "example": "Standalone" },
+
+              "swList": {
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "productID": { "type": "string", "example": "5650DB2" },
+                    "eeID": { "type": "string", "example": "S017GWJ" },
+                    "eeDesc": { "type": "string", "example": "DB2 12 for z/OS" },
+                    "priceType": { "type": "string", "example": "AWLC" },
+                    "priceCalc": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "period": { "type": "string", "example": "2022-08-27" },
+                          "msus": { "type": "number", "example": 9887 }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "duplicatedSoftware": { "type": "array", "example": [] },
+              "information": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "QuickProposalSaveResponse": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "object",
+          "properties": {
+            "zPricerVersion": {
+              "type": "string",
+              "example": "3.3.3"
+            },
+            "date": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        "customerInfo": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "customerNumber": {
+                "type": "string"
+              },
+              "customerName": {
+                "type": "string"
+              },
+              "customerLocation": {
+                "type": "string"
+              },
+              "serialNumber": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "systems": {
+          "type": "object",
+          "properties": {
+            "tto": {
+              "type": "object",
+              "properties": {
+                "ttoOverride": {
+                  "type": "number",
+                  "format": "double",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "example": 0.4
+                },
+                "ttoDiscount": {
+                  "type": "number",
+                  "format": "float",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "example": 0.35
+                },
+                "overrideFlag": {
+                  "type": "boolean"
+                },
+                "ttoLabel": {
+                  "example": "TU9"
+                },
+                "ttoDesc": {
+                  "type": "string",
+                  "example": "2"
+                }
+              }
+            },
+            "hwList": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "machineNum": { "type": "string", "example": "2059-B17" },
+                  "machineDesc": { "type": "string", "example": "Enterprise Aggregation Unit" },
+                  "machineSerial": { "type": "string", "example": "" },
+                  "machineCapacity": { "type": "number", "example": 25117 },
+                  "machineEngQty": { "type": "number", "example": 0 },
+                  "swLevPg": { "type": "string", "example": "" },
+                  "aggregation": { "type": "string", "example": "ipla" },
+                  "machineID": {
+                    "type": "string",
+                    "example": "d89889ce-b2f7-4b86-aede-d75420f8cad5"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "quickProposal": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "environmentType": { "type": "string", "example": "Standalone" },
+              "swList": {
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "productID": { "type": "string", "example": "5650DB2" },
+                    "eeID": { "type": "string", "example": "S017GWJ" },
+                    "eeDesc": { "type": "string", "example": "DB2 12 for z/OS" },
+                    "priceType": { "type": "string", "example": "AWLC" },
+                    "priceCalc": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "period": { "type": "string", "example": "2022-08-27" },
+                          "msus": { "type": "number", "example": 9887 }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "duplicatedSoftware": { "type": "array", "example": [] },
+              "information": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
