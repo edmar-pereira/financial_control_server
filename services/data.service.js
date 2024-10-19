@@ -62,7 +62,7 @@ exports.getMonths = async () => {
   let currMonth = currMonthDesc + ' - ' + currYear[0];
 
   const data = await service.find();
-  data.map((e) => {
+  data.map((e, index) => {
     let monthDesc = new Date(e.date).toLocaleString('pt-BR', { month: 'long' });
     monthDesc =
       monthDesc.charAt(0).toUpperCase() + monthDesc.slice(1).toString();
@@ -71,13 +71,10 @@ exports.getMonths = async () => {
       arr.push(monthDesc + ' - ' + year);
     }
   });
-
   if (!arr.includes(currMonth)) {
     arr.push(currMonth);
   }
-
   arr.reverse();
-
   return arr;
 };
 
@@ -135,6 +132,7 @@ exports.createData = async (data) => {
 
   // return await service.create(data);
 };
+
 exports.getByIdData = async (id) => {
   return await service.findById(id);
 };
@@ -147,3 +145,4 @@ exports.updateData = async (id, data) => {
 exports.deleteData = async (id) => {
   return await service.findByIdAndDelete(id);
 };
+
