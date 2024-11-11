@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const Router = require('./routes/Routes');
 const swaggerUi = require('swagger-ui-express');
 const cors = require('cors');
+const fs = require('fs');
+const https = require('https');
 require('dotenv').config();
 
 const app = express();
@@ -39,8 +41,19 @@ app.get('/health-check', (req, res) => {
   res.send('server is running');
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+
+if (process.env.LOCAL_DEV) {
+  const options = {
+    key: fs.readFileSync('.cert/key.pem'),
+    cert: fs.readFileSync('.cert/cert.pem'),
+  };
+  https.createServer(options, app).listen(PORT, () => {
+    console.log(`Server running locally on https://localhost:${PORT}`);
+  });
+} else {
+  app.listen(PORT, () => {
+    console.log(`Server running on https://localhost:${PORT}`);
+  });
+}
 
 module.exports = app;
