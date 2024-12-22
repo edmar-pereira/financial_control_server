@@ -2,7 +2,12 @@ const service = require('../models/category.model');
 
 exports.getCategory = async () => {
   const data = await service.find();
-  return data;
+
+  const sortedCategories = data.sort((a, b) =>
+    a.label.localeCompare(b.label)
+  );
+
+  return sortedCategories;
 };
 
 exports.updateCategory = async (data) => {
@@ -22,7 +27,7 @@ exports.updateCategory = async (data) => {
 
     const result = await service.bulkWrite(bulkOps);
     console.log('Collection updated successfully', result.nModified);
-    return result
+    return result;
     // res
     //   .status(200)
     //   .json({ message: 'Collection updated successfully', result });
