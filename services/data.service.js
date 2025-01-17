@@ -62,7 +62,7 @@ exports.getMonths = async () => {
   let currMonth = currMonthDesc + ' - ' + currYear[0];
 
   const data = await service.find();
-  data.map((e, index) => {
+  data.map((e) => {
     let monthDesc = new Date(e.date).toLocaleString('pt-BR', { month: 'long' });
     monthDesc =
       monthDesc.charAt(0).toUpperCase() + monthDesc.slice(1).toString();
@@ -74,7 +74,36 @@ exports.getMonths = async () => {
   if (!arr.includes(currMonth)) {
     arr.push(currMonth);
   }
-  arr.reverse();
+
+  // Sort the array
+  arr.sort((a, b) => {
+    const [monthA, yearA] = a.split(' - ');
+    const [monthB, yearB] = b.split(' - ');
+
+    // Convert month names to numeric values
+    const monthMap = {
+      Janeiro: 1,
+      Fevereiro: 2,
+      Março: 3,
+      Abril: 4,
+      Maio: 5,
+      Junho: 6,
+      Julho: 7,
+      Agosto: 8,
+      Setembro: 9,
+      Outubro: 10,
+      Novembro: 11,
+      Dezembro: 12,
+    };
+
+    // Compare years first, then months
+    if (yearA !== yearB) {
+      return yearB - yearA; // Descending year order
+    }
+    return monthMap[monthB] - monthMap[monthA]; // Descending month order
+  });
+
+  console.log(arr);
   return arr;
 };
 
@@ -145,4 +174,3 @@ exports.updateData = async (id, data) => {
 exports.deleteData = async (id) => {
   return await service.findByIdAndDelete(id);
 };
-
