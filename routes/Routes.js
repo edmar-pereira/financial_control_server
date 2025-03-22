@@ -1,4 +1,5 @@
 const express = require('express');
+const multer = require('multer');
 const {
   getData,
   getMonths,
@@ -13,7 +14,13 @@ const {
   updateCategory,
 } = require('../controllers/category.controller');
 
+const { uploadFile } = require('../controllers/upload.controller');
+
 const router = express.Router();
+
+// Multer storage setup
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 // router.use(async (req, _res, next) => {
 //   console.log("req.path", req.path);
@@ -35,5 +42,9 @@ router.route('/data/delete/:id').delete(deleteByIdData);
 // Category
 router.route('/data/getCategory/').get(getCategory);
 router.route('/data/updateCategory/').put(updateCategory);
+
+//upload file
+router.post('/upload', upload.single('file'), uploadFile);
+
 
 module.exports = router;
