@@ -9,14 +9,10 @@ function formatDateHeader(param) {
 
 function toPositiveBRL(value) {
   if (typeof value !== 'string') return 0;
-
-  // Remove ONLY thousands separators (.) and replace decimal comma (,) with a dot (.)
-  let cleanValue = value.replace(/\./g, '').replace(',', '.');
-
-  // Convert to number safely
-  let numericValue = parseFloat(cleanValue);
-
-  // If conversion fails, return 0
+  if (value.includes(',')) {
+    value = value.replace(/\./g, '').replace(',', '.');
+  }
+  let numericValue = parseFloat(value);
   return isNaN(numericValue) ? 0 : Math.abs(numericValue);
 }
 
@@ -75,6 +71,7 @@ const uploadFile = async (req, res) => {
     const data = await service.getCategoryInfo();
 
     function machValues(valueToMatch) {
+      console.log(valueToMatch);
       const filteredData = data.filter(
         (item) => item.fantasyName === valueToMatch
       );
@@ -89,7 +86,9 @@ const uploadFile = async (req, res) => {
       }
     }
 
-    const workbook = XLSX.read(req.file.buffer, { importedEntryType: 'buffer' });
+    const workbook = XLSX.read(req.file.buffer, {
+      importedEntryType: 'buffer',
+    });
     const sheetName = workbook.SheetNames[0];
     const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
 
@@ -142,16 +141,31 @@ const uploadFile = async (req, res) => {
           description = matchedValues.description;
           value = toPositiveBRL(row['__EMPTY_4']);
         } else {
-          const splited = row['__EMPTY'].split(/\s{2,}/);
-          const matchedValues = machValues(splited[1].trim());
+          console.log(row['__EMPTY']);
+          if (
+            row['__EMPTY'] === 'DEBITO AUT. FAT.CARTAO MASTER CARD FINAL 5276'
+          ) {
+            console.log('here');
+          }
           transactionDate = formatDateHeader(
             row['EXTRATO DE CONTA CORRENTE '].trim()
           );
-          type = matchedValues.type;
-          description = matchedValues.description;
-          fantasyName = splited[1].trim();
-          importedEntryType = splited[0].trim();
-          value = toPositiveBRL(row['__EMPTY_4']);
+          const splited = row['__EMPTY'].split(/\s{2,}/);
+          if (splited.length === 1) {
+            type = 'uncategorized';
+            description = '';
+            fantasyName = splited[0].trim();
+            importedEntryType = splited[0].trim();
+            value = toPositiveBRL(row['__EMPTY_4']);
+          } else {
+            const matchedValues = machValues(splited[1].trim());
+
+            type = matchedValues.type;
+            description = matchedValues.description;
+            fantasyName = splited[1].trim();
+            importedEntryType = splited[0].trim();
+            value = toPositiveBRL(row['__EMPTY_4']);
+          }
         }
 
         return {
