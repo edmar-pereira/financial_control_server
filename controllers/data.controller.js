@@ -1,8 +1,9 @@
 const service = require('../services/data.service');
 
 exports.getData = async (req, res) => {
+  // console.log(req.body)
   try {
-    const data = await service.getData(req.query);
+    const data = await service.getData(req.body);
     res.json({ data, status: 'success' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -11,7 +12,7 @@ exports.getData = async (req, res) => {
 
 exports.getMonths = async (req, res) => {
   try {
-    const arrMonths = await service.getMonths();
+    const arrMonths = await service.getMonths(req.body);
     res.json({ arrMonths, status: 200 });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -21,13 +22,14 @@ exports.getMonths = async (req, res) => {
 exports.createData = async (req, res) => {
   try {
     const data = await service.createData(req.body);
-    res.json({ data, status: 'success' });
+    res.json({ status: 'success' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
 exports.getByIdData = async (req, res) => {
+
   try {
     const data = await service.getByIdData(req.params.id);
     res.json({ data, status: 'success' });
@@ -53,3 +55,12 @@ exports.deleteByIdData = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+exports.insertMany = async (req, res) => { 
+  try {
+    const data = await service.inserMany(req.body);
+    res.json({ data, status: 'success' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}

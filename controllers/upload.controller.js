@@ -7,6 +7,19 @@ function formatDateHeader(param) {
   return transactionDate;
 }
 
+function toPositiveBRL(value) {
+  if (typeof value !== 'string') return 0;
+
+  // Remove ONLY thousands separators (.) and replace decimal comma (,) with a dot (.)
+  let cleanValue = value.replace(/\./g, '').replace(',', '.');
+
+  // Convert to number safely
+  let numericValue = parseFloat(cleanValue);
+
+  // If conversion fails, return 0
+  return isNaN(numericValue) ? 0 : Math.abs(numericValue);
+}
+
 function parseTransaction(input) {
   const parts = input.split(/\s{2,}/);
   const expType = parts[0].trim();
@@ -63,12 +76,12 @@ const uploadFile = async (req, res) => {
 
     function machValues(valueToMatch) {
       const filteredData = data.filter(
-        (item) => item.spreadSheetDesc === valueToMatch
+        (item) => item.fantasyName === valueToMatch
       );
 
       if (filteredData.length > 0) {
         return {
-          type: filteredData[0].type,
+          type: filteredData[0].categoryId,
           description: filteredData[0].description,
         };
       } else {
@@ -76,7 +89,7 @@ const uploadFile = async (req, res) => {
       }
     }
 
-    const workbook = XLSX.read(req.file.buffer, { spreadSheetType: 'buffer' });
+    const workbook = XLSX.read(req.file.buffer, { importedEntryType: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
 
@@ -87,8 +100,8 @@ const uploadFile = async (req, res) => {
         const mainType = row['__EMPTY'] === undefined ? '' : row['__EMPTY'];
 
         let transactionDate = '';
-        let spreadSheetDesc = '';
-        let spreadSheetType = '';
+        let fantasyName = '';
+        let importedEntryType = '';
         let type = '';
         let description = '';
         let value = 0;
@@ -100,11 +113,11 @@ const uploadFile = async (req, res) => {
           transactionDate = formatDateHeader(
             row['EXTRATO DE CONTA CORRENTE '].trim()
           );
-          spreadSheetDesc = splited[1]?.trim();
-          spreadSheetType = splited[0].trim();
+          fantasyName = splited[1]?.trim();
+          importedEntryType = splited[0].trim();
           type = matchedValues.type;
           description = matchedValues.description;
-          value = row['__EMPTY_4'];
+          value = toPositiveBRL(row['__EMPTY_4']);
         } else if (
           mainType.includes('PIX RECEBIDO') ||
           mainType.includes('LIQUIDO DE VENCIMENTO')
@@ -114,21 +127,20 @@ const uploadFile = async (req, res) => {
           transactionDate = formatDateHeader(
             row['EXTRATO DE CONTA CORRENTE '].trim()
           );
-          spreadSheetDesc = splited[1].trim();
-          spreadSheetType = splited[0].trim();
+          fantasyName = splited[1].trim();
+          importedEntryType = splited[0].trim();
           type = matchedValues.type;
           description = matchedValues.description;
-
-          value = row['__EMPTY_3'];
+          value = toPositiveBRL(row['__EMPTY_3']);
         } else if (mainType.includes('DEBITO VISA ELECTRON BRASIL')) {
           const val = parseTransaction(row['__EMPTY']);
           const matchedValues = machValues(val.exp);
           transactionDate = val.date;
-          spreadSheetDesc = val.exp;
-          spreadSheetType = val.expType;
+          fantasyName = val.exp;
+          importedEntryType = val.expType;
           type = matchedValues.type;
           description = matchedValues.description;
-          value = row['__EMPTY_4'];
+          value = toPositiveBRL(row['__EMPTY_4']);
         } else {
           const splited = row['__EMPTY'].split(/\s{2,}/);
           const matchedValues = machValues(splited[1].trim());
@@ -137,15 +149,15 @@ const uploadFile = async (req, res) => {
           );
           type = matchedValues.type;
           description = matchedValues.description;
-          spreadSheetDesc = splited[1].trim();
-          spreadSheetType = splited[0].trim();
-          value = row['__EMPTY_4'];
+          fantasyName = splited[1].trim();
+          importedEntryType = splited[0].trim();
+          value = toPositiveBRL(row['__EMPTY_4']);
         }
 
         return {
           date: transactionDate,
-          spreadSheetDesc,
-          spreadSheetType,
+          fantasyName,
+          importedEntryType,
           type,
           description,
           value,

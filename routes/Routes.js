@@ -7,6 +7,7 @@ const {
   getByIdData,
   updateData,
   deleteByIdData,
+  insertMany,
 } = require('../controllers/data.controller');
 
 const {
@@ -32,10 +33,10 @@ const upload = multer({ storage: storage });
 // });
 
 // Data
-router.route('/data/getData/').get(getData);
+router.route('/data/getData/').post(getData); // convert get to post to include body
 router.route('/data/getMonths/').get(getMonths);
 router.route('/data/create').post(createData);
-router.route('/data/get/:id').get(getByIdData);
+router.route('/data/getById/:id').get(getByIdData);
 router.route('/data/update/:id').put(updateData);
 router.route('/data/delete/:id').delete(deleteByIdData);
 
@@ -46,5 +47,6 @@ router.route('/data/updateCategory/').put(updateCategory);
 //upload file
 router.post('/upload', upload.single('file'), uploadFile);
 
+router.route('/data/insertmany/').post(insertMany);
 
 module.exports = router;

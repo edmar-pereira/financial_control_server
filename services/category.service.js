@@ -3,20 +3,24 @@ const service = require('../models/category.model');
 exports.getCategory = async () => {
   const data = await service.find();
 
-  const sortedCategories = data.sort((a, b) =>
-    a.label.localeCompare(b.label)
-  );
+  const result = data
+    .map((item) => ({
+      id: item.id,
+      label: item.label,
+      color: item.color,
+      maxValue: item.maxValue,
+    }))
+    .sort((a, b) => {
+      if (a.id === 'all_categories') return -1;
+      if (b.id === 'all_categories') return 1;
+      return 0;
+    });
 
-  return sortedCategories;
+  return result;
 };
 
 exports.updateCategory = async (data) => {
   try {
-    console.log(data);
-    // if (!Array.isArray(data)) {
-    //   return res.status(400).json({ message: 'Invalid data format' });
-    // }
-
     const bulkOps = data.map((item) => ({
       updateOne: {
         filter: { id: item.id }, // Match documents by "id"
@@ -28,12 +32,7 @@ exports.updateCategory = async (data) => {
     const result = await service.bulkWrite(bulkOps);
     console.log('Collection updated successfully', result.nModified);
     return result;
-    // res
-    //   .status(200)
-    //   .json({ message: 'Collection updated successfully', result });
   } catch (error) {
     console.error('Error updating collection:', error);
   }
-
-  // return await service.findByIdAndUpdate(id, data);
 };

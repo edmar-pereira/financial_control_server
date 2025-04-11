@@ -11,12 +11,10 @@ const schema = new Schema({
     type: Boolean,
     default: false,
   },
-  type: String,
-  avatarType: String,
+  categoryId: String,
   value: Number,
-  month: String,
-  year: String,
-  installments: String,
+  currentInstallment: Number,
+  totalInstallment: Number,
 });
 
 module.exports = mongoose.model('data', schema);

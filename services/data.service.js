@@ -1,158 +1,164 @@
 const moment = require('moment');
 const service = require('../models/data.model');
+const { ObjectId } = require('mongodb');
 
-async function filterAll(data, month, year) {
+const {
+  getCategoryInfo,
+  createCategoryInfo,
+} = require('../services/category.info.service');
+
+function toPositiveBRL(value) {
+  if (typeof value !== 'string') return 0;
+
+  // Remove ONLY thousands separators (.) and replace decimal comma (,) with a dot (.)
+  if (value.includes(',')) {
+    // Remove thousands separator (.) and replace decimal comma (,) with a dot
+    value = value.replace(/\./g, '').replace(',', '.');
+  }
+
+  // Convert to number safely
+  let numericValue = parseFloat(value);
+
+  // If conversion fails, return 0
+  return isNaN(numericValue) ? 0 : Math.abs(numericValue);
+}
+
+function filterAll(data) {
   let totalRev = 0;
   let totalExp = 0;
 
-  data.map((e) => {
-    if (e.type === 'Receita' && e.ignore === false) {
+  // console.log(data);
+
+  data.forEach((e) => {
+    if (e.categoryId === 'revenue' && e.ignore === false) {
       totalRev += e.value;
-    } else if (e.ignore === false && e.type !== 'Investimentos') {
+    } else if (e.ignore === false && e.categoryId !== 'stocks') {
       totalExp += e.value;
     }
   });
 
-  let currentMonthFilteredSorted = await data.sort((a, b) => {
-    return moment(a.date).diff(b.date);
-  });
+  let sortedData = data.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  currentMonthFilteredSorted = currentMonthFilteredSorted.reverse();
-
-  const obj = {
-    expenses: currentMonthFilteredSorted,
+  return {
+    expenses: sortedData,
     totalRev,
     totalExp,
     difference: totalRev - totalExp,
-    month,
-    year,
   };
-
-  return obj;
 }
 
 exports.getData = async (params) => {
-  const { month, year, category } = params;
-  let query = {};
+  const { startDate, endDate, categoryIds, descriptions, values } = params;
 
-  if (month !== undefined) {
-    query.month = month;
-  }
-  if (year !== undefined) {
-    query.year = year;
-  }
-  if (category !== undefined) {
-    query.avatarType = category;
-  }
+  if (!startDate) throw new Error('At least one date is required');
+
+  let query = buildQuery(startDate, endDate, categoryIds, descriptions, values);
 
   const data = await service.find(query);
-
-  const values = await filterAll(data, month, year);
-
-  return values;
+  // console.log(data)
+  return filterAll(data);
 };
 
-exports.getMonths = async () => {
-  let arr = [];
+// 🔹 Extracted function to build the query dynamically
+const buildQuery = (startDate, endDate, categoryIds, descriptions, values) => {
+  const query = {};
 
-  let currMonthDesc = new Date().toLocaleString('pt-BR', { month: 'long' });
-  currMonthDesc =
-    currMonthDesc.charAt(0).toUpperCase() + currMonthDesc.slice(1).toString();
-  const currYear = new Date().toISOString().split('-');
-  let currMonth = currMonthDesc + ' - ' + currYear[0];
+  // console.log("Params:", startDate, endDate, categoryIds, descriptions, values);
 
-  const data = await service.find();
-  data.map((e) => {
-    let monthDesc = new Date(e.date).toLocaleString('pt-BR', { month: 'long' });
-    monthDesc =
-      monthDesc.charAt(0).toUpperCase() + monthDesc.slice(1).toString();
-    const year = new Date(e.date).toISOString().split('-')[0];
-    if (!arr.includes(monthDesc + ' - ' + year)) {
-      arr.push(monthDesc + ' - ' + year);
+  // 🔹 1. Handle Date Filtering
+  if (startDate) {
+    let finalEndDate = endDate;
+
+    // If no endDate is given, set it to the last day of the month
+    if (!endDate) {
+      const year = parseInt(startDate.split('-')[0], 10);
+      const month = parseInt(startDate.split('-')[1], 10);
+
+      // Get last day of the month
+      const lastDay = new Date(year, month, 0).getDate();
+      finalEndDate = `${year}-${month.toString().padStart(2, '0')}-${lastDay}`;
     }
-  });
-  if (!arr.includes(currMonth)) {
-    arr.push(currMonth);
+
+    query.date = {
+      $gte: new Date(`${startDate}T00:00:00.000Z`),
+      $lte: new Date(`${finalEndDate}T23:59:59.999Z`),
+    };
   }
 
-  // Sort the array
-  arr.sort((a, b) => {
-    const [monthA, yearA] = a.split(' - ');
-    const [monthB, yearB] = b.split(' - ');
+  // 🔹 2. Category Filtering
+  if (categoryIds?.length) {
+    query.categoryId = { $in: categoryIds };
+  }
 
-    // Convert month names to numeric values
-    const monthMap = {
-      Janeiro: 1,
-      Fevereiro: 2,
-      Março: 3,
-      Abril: 4,
-      Maio: 5,
-      Junho: 6,
-      Julho: 7,
-      Agosto: 8,
-      Setembro: 9,
-      Outubro: 10,
-      Novembro: 11,
-      Dezembro: 12,
+  // 🔹 3. Description Filtering (Case-Insensitive & Partial Match)
+  if (descriptions?.length) {
+    const regexSafeDescriptions = descriptions.map((desc) =>
+      desc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    );
+    query.description = {
+      $regex: regexSafeDescriptions.join('|'),
+      $options: 'i',
     };
+  }
 
-    // Compare years first, then months
-    if (yearA !== yearB) {
-      return yearB - yearA; // Descending year order
-    }
-    return monthMap[monthB] - monthMap[monthA]; // Descending month order
-  });
+  // 🔹 4. Value Filtering (Allow decimals & match exact or near values)
+  if (values?.length) {
+    const parsedValues = values.map((v) => parseFloat(v));
+    query.value = { $in: parsedValues };
+  }
+  return query;
+};
 
-  console.log(arr);
-  return arr;
+const insertData = async (data) => {
+  const savedCategory = await getCategoryInfo();
+
+  const result = savedCategory.filter(
+    (item) =>
+      item.categoryId === data.categoryId &&
+      item.fantasyName === data.fantasyName &&
+      item.description === data.description
+  );
+
+  if (result.length === 0 && data.fantasyName !== undefined) {
+    const newCategory = {
+      fantasyName: data.fantasyName,
+      description: data.description,
+      categoryId: data.categoryId,
+    };
+    createCategoryInfo(newCategory);
+  }
+
+  const newData = {
+    date: data.date,
+    description: data.description,
+    ignore: data.ignore,
+    categoryId: data.categoryId,
+    totalInstallment: data.totalInstallment,
+    currentInstallment: data.currentInstallment, // Correctly set installment number
+    value: toPositiveBRL(data.value),
+  };
+
+  await service.create(newData);
 };
 
 exports.createData = async (data) => {
   try {
-    if (data.installment === 1) {
-      console.log(data);
-      return await service.create(data);
+    if (data.totalInstallment === 1) {
+      return await insertData(data);
     } else {
-      for (let index = 0; index < data.installment; index++) {
-        let date = new Date(data.date);
-        date.setMonth(date.getMonth() + index);
+      for (let index = 0; index < data.totalInstallment; index++) {
+        const dateObj = new Date(data.date);
+        dateObj.setMonth(dateObj.getMonth() + index); // Increment month for each installment
 
-        const shortDate = new Date(date).toISOString().substring(0, 10);
-        const obj = shortDate.split('-');
-        const dateFormated = new Date(obj[0], obj[1] - 1, obj[2]); // 2009-11-10
-        const dateConverted = dateFormated.toLocaleString('pt-BR', {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
-        });
-        const splitedDate = dateConverted.split(' ');
-        await service.create({
-          date,
+        await insertData({
+          date: dateObj.toISOString(),
           description: data.description,
           ignore: false,
-          type: data.type,
-          avatarType: data.avatarType,
-          installments: data.installments,
+          categoryId: data.categoryId,
+          totalInstallment: data.totalInstallment,
+          currentInstallment: index + 1, // Correctly set installment number
           value: data.value,
-          year: splitedDate[4],
-          month:
-            splitedDate[2].charAt(0).toUpperCase() +
-            splitedDate[2].slice(1).toString(),
-          installments: `Parcela ${index + 1} de ${data.installment}`,
         });
-        // console.log({
-        //   date,
-        //   description: data.description,
-        //   ignore: false,
-        //   type: data.type,
-        //   avatarType: data.avatarType,
-        //   value: data.value,
-        //   installment: `Parcela ${index + 1} de ${data.installment}`,
-        //   year: splitedDate[4],
-        //   month:
-        //     splitedDate[2].charAt(0).toUpperCase() +
-        //     splitedDate[2].slice(1).toString(),
-        // });
       }
     }
   } catch (e) {
@@ -163,7 +169,8 @@ exports.createData = async (data) => {
 };
 
 exports.getByIdData = async (id) => {
-  return await service.findById(id);
+  console.log(id);
+  return await service.findOne({ _id: new ObjectId(id) });
 };
 
 exports.updateData = async (id, data) => {
@@ -173,4 +180,28 @@ exports.updateData = async (id, data) => {
 
 exports.deleteData = async (id) => {
   return await service.findByIdAndDelete(id);
+};
+
+exports.inserMany = async (data) => {
+  // console.log(data);
+  const processData = async (dataArray) => {
+    await Promise.all(
+      dataArray.map(async (item) => {
+        await insertData({
+          date: new Date(item.date).toISOString(),
+          description: item.description,
+          ignore: false,
+          categoryId: item.type,
+          totalInstallment: 1,
+          currentInstallment: 1, // Correctly set installment number
+          value: item.value,
+          fantasyName: item.fantasyName,
+        });
+      })
+    );
+
+    console.log('All insertions completed!');
+  };
+
+  processData(data);
 };
