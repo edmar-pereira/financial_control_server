@@ -71,7 +71,6 @@ const uploadFile = async (req, res) => {
     const data = await service.getCategoryInfo();
 
     function machValues(valueToMatch) {
-      console.log(valueToMatch);
       const filteredData = data.filter(
         (item) => item.fantasyName === valueToMatch
       );
@@ -141,12 +140,6 @@ const uploadFile = async (req, res) => {
           description = matchedValues.description;
           value = toPositiveBRL(row['__EMPTY_4']);
         } else {
-          console.log(row['__EMPTY']);
-          if (
-            row['__EMPTY'] === 'DEBITO AUT. FAT.CARTAO MASTER CARD FINAL 5276'
-          ) {
-            console.log('here');
-          }
           transactionDate = formatDateHeader(
             row['EXTRATO DE CONTA CORRENTE '].trim()
           );
@@ -159,7 +152,6 @@ const uploadFile = async (req, res) => {
             value = toPositiveBRL(row['__EMPTY_4']);
           } else {
             const matchedValues = machValues(splited[1].trim());
-
             type = matchedValues.type;
             description = matchedValues.description;
             fantasyName = splited[1].trim();
