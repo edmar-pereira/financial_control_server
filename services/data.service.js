@@ -141,7 +141,7 @@ const insertData = async (data) => {
     value: toPositiveBRL(data.value),
   };
 
-  // await service.create(newData);
+  await service.create(newData);
 };
 
 exports.createData = async (data) => {
