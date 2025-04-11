@@ -8,19 +8,22 @@ const {
 } = require('../services/category.info.service');
 
 function toPositiveBRL(value) {
-  if (typeof value !== 'string') return 0;
-
-  // Remove ONLY thousands separators (.) and replace decimal comma (,) with a dot (.)
-  if (value.includes(',')) {
-    // Remove thousands separator (.) and replace decimal comma (,) with a dot
-    value = value.replace(/\./g, '').replace(',', '.');
+  if (typeof value === 'number') {
+    return Math.abs(value); // Directly return the absolute value
   }
 
-  // Convert to number safely
-  let numericValue = parseFloat(value);
+  if (typeof value === 'string') {
+    // Remove thousands separator (.) and replace decimal comma (,) with a dot
+    if (value.includes(',')) {
+      value = value.replace(/\./g, '').replace(',', '.');
+    }
 
-  // If conversion fails, return 0
-  return isNaN(numericValue) ? 0 : Math.abs(numericValue);
+    const numericValue = parseFloat(value);
+    return isNaN(numericValue) ? 0 : Math.abs(numericValue);
+  }
+
+  // If value is neither string nor number, return 0
+  return 0;
 }
 
 function filterAll(data) {
@@ -138,7 +141,7 @@ const insertData = async (data) => {
     value: toPositiveBRL(data.value),
   };
 
-  await service.create(newData);
+  // await service.create(newData);
 };
 
 exports.createData = async (data) => {
