@@ -8,12 +8,12 @@ function formatDateHeader(param) {
 }
 
 function toPositiveBRL(value) {
-  if (typeof value !== 'string') return 0;
-  if (value.includes(',')) {
-    value = value.replace(/\./g, '').replace(',', '.');
-  }
-  let numericValue = parseFloat(value);
-  return isNaN(numericValue) ? 0 : Math.abs(numericValue);
+  if (typeof value !== 'string') return '0.00';
+  const normalized = value.replace(/\./g, '').replace(',', '.');
+  const numericValue = parseFloat(normalized);
+  if (isNaN(numericValue)) return '0.00';
+  // Convert to positive and return a string with exactly 2 decimals
+  return Math.abs(numericValue).toFixed(2);
 }
 
 function parseTransaction(input) {

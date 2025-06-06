@@ -32,6 +32,11 @@ const upload = multer({ storage: storage });
 //   next();
 // });
 
+router.use(express.static(path.join(__dirname, 'dist')));
+router.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+
 // Data
 router.route('/data/getData/').post(getData); // convert get to post to include body
 router.route('/data/getMonths/').get(getMonths);
