@@ -1,5 +1,4 @@
 const express = require('express');
-const path = require('path');
 const multer = require('multer');
 const {
   getData,
@@ -20,9 +19,11 @@ const { uploadFile } = require('../controllers/upload.controller');
 
 const router = express.Router();
 
+
 // Multer storage setup
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
+
 
 // router.use(async (req, _res, next) => {
 //   console.log("req.path", req.path);
@@ -32,11 +33,6 @@ const upload = multer({ storage: storage });
 
 //   next();
 // });
-
-router.use(express.static(path.join(__dirname, 'dist')));
-router.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-});
 
 // Data
 router.route('/data/getData/').post(getData); // convert get to post to include body
