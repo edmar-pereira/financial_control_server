@@ -10,7 +10,6 @@ exports.getCategory = async (req, res) => {
   }
 };
 
-
 exports.updateCategory = async (req, res) => {
   try {
     const data = await service.updateCategory(req.body);
@@ -20,3 +19,11 @@ exports.updateCategory = async (req, res) => {
   }
 };
 
+exports.getUniqueCategory = async (req, res) => {
+  try {
+    const data = await service.getUniqueCategory();
+    res.json({ data, status: 200 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};

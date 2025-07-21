@@ -13,6 +13,7 @@ const {
 const {
   getCategory,
   updateCategory,
+  getUniqueCategory
 } = require('../controllers/category.controller');
 
 const { uploadFile } = require('../controllers/upload.controller');
@@ -45,6 +46,7 @@ router.route('/data/delete/:id').delete(deleteByIdData);
 // Category
 router.route('/data/getCategory/').get(getCategory);
 router.route('/data/updateCategory/').put(updateCategory);
+router.route('/data/getUniqueCategory/').get(getUniqueCategory);
 
 //upload file
 router.post('/upload', upload.single('file'), uploadFile);
