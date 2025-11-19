@@ -1,0 +1,219 @@
+type: collection.insomnia.rest/5.0
+name: Financial Control
+meta:
+  id: wrk_14c51cb5f85a49c7838df34d0f22e4ec
+  created: 1755897146754
+  modified: 1762008847782
+  description: ""
+collection:
+  - url: "{{ _.LOCAL_ENDPOINT }}/api/data/create"
+    name: data create
+    meta:
+      id: req_79f94310d23a460daaa5b75d5d765fef
+      created: 1665347164089
+      modified: 1762010233933
+      isPrivate: false
+      description: ""
+      sortKey: 500
+    method: POST
+    body:
+      mimeType: application/json
+      text: |-
+        {
+        	"date": "2023-04-10T03:00:00.000Z",
+          "description": "Posto do Batata",
+          "ignore": false,
+          "type": "Combustível",
+          "avatarType": "fuel",
+          "value": 155,
+        	"month": "Abril",
+        	"year": "2023"
+        }
+    headers:
+      - name: Content-Type
+        value: application/json
+    settings:
+      renderRequestBody: true
+      encodeUrl: true
+      followRedirects: global
+      cookies:
+        send: true
+        store: true
+      rebuildPath: true
+  - url: "{{ _.LOCAL_ENDPOINT }}/api/data/update/634af14729b27f9ac336726a"
+    name: data update
+    meta:
+      id: req_019d8dd220094670aa02a689b9f54e54
+      created: 1665347489819
+      modified: 1762010254036
+      isPrivate: false
+      description: ""
+      sortKey: 900
+    method: PUT
+    body:
+      mimeType: application/json
+      text: |-
+        {
+          "transaction": "Escola do João",
+          "category": "Contas residenciais",
+        	"value": 2.90
+        }
+    headers:
+      - name: Content-Type
+        value: application/json
+    settings:
+      renderRequestBody: true
+      encodeUrl: true
+      followRedirects: global
+      cookies:
+        send: true
+        store: true
+      rebuildPath: true
+  - url: "{{ _.LOCAL_ENDPOINT }}/api/data/delete/6353264c5bc7bdd08989c27b"
+    name: data delete
+    meta:
+      id: req_20803efe14c64091a66d02c43b7eed31
+      created: 1665347610272
+      modified: 1762010241809
+      isPrivate: false
+      description: ""
+      sortKey: 600
+    method: DELETE
+    settings:
+      renderRequestBody: true
+      encodeUrl: true
+      followRedirects: global
+      cookies:
+        send: true
+        store: true
+      rebuildPath: true
+  - url: "{{ _.LOCAL_ENDPOINT }}/api/data/get/68c1f5414350ece90b908b5b"
+    name: data get by id
+    meta:
+      id: req_21dbcd2648c34495bbd0f0f6a27d0cf3
+      created: 1665856077465
+      modified: 1763520183382
+      isPrivate: false
+      description: ""
+      sortKey: 800
+    method: GET
+    settings:
+      renderRequestBody: true
+      encodeUrl: true
+      followRedirects: global
+      cookies:
+        send: true
+        store: true
+      rebuildPath: true
+  - url: "{{ _.LOCAL_ENDPOINT }}/api/data/getData/"
+    name: data get
+    meta:
+      id: req_5bd40381f89c419699f2396921d84df7
+      created: 1684551313300
+      modified: 1762010247059
+      isPrivate: false
+      description: ""
+      sortKey: 750
+    method: POST
+    body:
+      mimeType: application/json
+      text: |-
+        {
+          "startDate": "2024-01-01",
+          "endDate": "2025-09-13",
+          "categoryIds": ["bars_and_restaurants", "fuel"],
+          "descriptions": ["Ifood", "Combustível"],
+          "valuesRange": { "min": 60, "max": 500 }
+        }
+    headers:
+      - name: Content-Type
+        value: application/json
+    settings:
+      renderRequestBody: true
+      encodeUrl: true
+      followRedirects: global
+      cookies:
+        send: true
+        store: true
+      rebuildPath: true
+  - url: "{{ _.LOCAL_ENDPOINT }}/api/upload"
+    name: Upload files - bank
+    meta:
+      id: req_3b5c22b7135d448b861c453caa2f64a1
+      created: 1754146547449
+      modified: 1762015624900
+      isPrivate: false
+      description: ""
+      sortKey: -1754146547450
+    method: POST
+    body:
+      mimeType: multipart/form-data
+      params:
+        - name: file
+          value: ""
+          description: ""
+          disabled: false
+          id: pair_c5adf890214143efbb3f620b1c61495a
+          fileName: /Users/pedmar/Desktop/Applications/Training/financial_control_server/spreadsheets/planilhaExtrato_1-10_1-11.xls
+          type: file
+    headers:
+      - name: Content-Type
+        value: multipart/form-data
+      - name: User-Agent
+        value: insomnia/11.4.0
+    settings:
+      renderRequestBody: true
+      encodeUrl: true
+      followRedirects: global
+      cookies:
+        send: true
+        store: true
+      rebuildPath: true
+  - url: "{{ _.LOCAL_ENDPOINT }}/api/upload"
+    name: Upload files - creditcard
+    meta:
+      id: req_35fdf9cac450414da8b5c0efa6497afa
+      created: 1762012445062
+      modified: 1762015677639
+      isPrivate: false
+      description: ""
+      sortKey: -1751613868794
+    method: POST
+    body:
+      mimeType: multipart/form-data
+      params:
+        - name: file
+          value: ""
+          description: ""
+          disabled: false
+          id: pair_c5adf890214143efbb3f620b1c61495a
+          fileName: /Users/pedmar/Desktop/Applications/Training/financial_control_server/spreadsheets/Fatura_nov_2025.csv
+          type: file
+    headers:
+      - name: Content-Type
+        value: multipart/form-data
+      - name: User-Agent
+        value: insomnia/11.4.0
+    settings:
+      renderRequestBody: true
+      encodeUrl: true
+      followRedirects: global
+      cookies:
+        send: true
+        store: true
+      rebuildPath: true
+cookieJar:
+  name: Default Jar
+  meta:
+    id: jar_602f6690010b9db6c17e069753840e7616e6c6e1
+    created: 1755897146789
+    modified: 1755897146789
+environments:
+  name: Base Environment
+  meta:
+    id: env_602f6690010b9db6c17e069753840e7616e6c6e1
+    created: 1755897146761
+    modified: 1762010207651
+    isPrivate: false
+  data:
+    LOCAL_ENDPOINT: https://localhost:3001
