@@ -1,86 +1,51 @@
 const moment = require('moment');
-const service = require('../models/data.model');
+const DataModel = require('../models/data.model');
 const { ObjectId } = require('mongodb');
-
+const { validateImport } = require('./import.validation');
 const {
   getCategoryInfo,
   createCategoryInfo,
-} = require('../services/category.info.service');
+} = require('./category.info.service');
+
+/* ---------------- HELPERS ---------------- */
 
 function toPositiveBRL(value) {
-  if (typeof value === 'number') {
-    return Math.abs(value); // Directly return the absolute value
-  }
+  if (typeof value === 'number') return Math.abs(value);
 
   if (typeof value === 'string') {
-    // Remove thousands separator (.) and replace decimal comma (,) with a dot
     if (value.includes(',')) {
       value = value.replace(/\./g, '').replace(',', '.');
     }
-
     const numericValue = parseFloat(value);
     return isNaN(numericValue) ? 0 : Math.abs(numericValue);
   }
 
-  // If value is neither string nor number, return 0
   return 0;
 }
 
-function filterAll(data) {
-  let totalRev = 0;
-  let totalExp = 0;
-
-  // console.log(data);
-
-  data.forEach((e) => {
-    if (e.categoryId === 'revenue' && e.ignore === false) {
-      totalRev += e.value;
-    } else if (e.ignore === false && e.categoryId !== 'stocks') {
-      totalExp += e.value;
-    }
-  });
-
-  let sortedData = data.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  return {
-    expenses: sortedData,
-    totalRev,
-    totalExp,
-    difference: totalRev - totalExp,
-  };
+/**
+ * 💳 Compute statement date for installments
+ * purchaseDate + (currentInstallment - 1) months
+ */
+function computeStatementDate(purchaseDate, currentInstallment = 1) {
+  const d = new Date(purchaseDate);
+  d.setMonth(d.getMonth() + (currentInstallment - 1));
+  return d;
 }
 
-exports.getData = async (params) => {
-  const { startDate, endDate, categoryIds, descriptions, values } = params;
+/* ---------------- GET DATA ---------------- */
 
-  if (!startDate) throw new Error('At least one date is required');
-
-  let query = buildQuery(startDate, endDate, categoryIds, descriptions, values);
-
-  const data = await service.find(query);
-  // console.log(data)
-  return filterAll(data);
-};
-
-// 🔹 Extracted function to build the query dynamically
-const buildQuery = (startDate, endDate, categoryIds, descriptions, values) => {
+function buildQuery(startDate, endDate, categoryIds, descriptions, valuesRange) {
   const query = {};
 
-  // console.log("Params:", startDate, endDate, categoryIds, descriptions, values);
-
-  // 🔹 1. Handle Date Filtering
   if (startDate) {
-    let finalEndDate = endDate;
-
-    // If no endDate is given, set it to the last day of the month
-    if (!endDate) {
-      const year = parseInt(startDate.split('-')[0], 10);
-      const month = parseInt(startDate.split('-')[1], 10);
-
-      // Get last day of the month
-      const lastDay = new Date(year, month, 0).getDate();
-      finalEndDate = `${year}-${month.toString().padStart(2, '0')}-${lastDay}`;
-    }
+    const finalEndDate =
+      endDate ||
+      (() => {
+        const [y, m] = startDate.split('-').map(Number);
+        const lastDay = new Date(y, m, 0).getDate();
+        return `${y}-${m.toString().padStart(2, '0')}-${lastDay}`;
+      })();
 
     query.date = {
       $gte: new Date(`${startDate}T00:00:00.000Z`),
@@ -88,123 +53,152 @@ const buildQuery = (startDate, endDate, categoryIds, descriptions, values) => {
     };
   }
 
-  // 🔹 2. Category Filtering
-  if (categoryIds?.length) {
-    query.categoryId = { $in: categoryIds };
-  }
+  if (categoryIds?.length) query.categoryId = { $in: categoryIds };
 
-  // 🔹 3. Description Filtering (Case-Insensitive & Partial Match)
   if (descriptions?.length) {
-    const regexSafeDescriptions = descriptions.map((desc) =>
-      desc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const safe = descriptions.map(d =>
+      d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
     );
-    query.description = {
-      $regex: regexSafeDescriptions.join('|'),
-      $options: 'i',
-    };
+    query.description = { $regex: safe.join('|'), $options: 'i' };
   }
 
-  // 🔹 4. Value Filtering (Allow decimals & match exact or near values)
-  if (values?.length) {
-    const parsedValues = values.map((v) => parseFloat(v));
-    query.value = { $in: parsedValues };
+  if (valuesRange?.min != null || valuesRange?.max != null) {
+    query.value = {};
+    if (valuesRange.min != null) query.value.$gte = Number(valuesRange.min);
+    if (valuesRange.max != null) query.value.$lte = Number(valuesRange.max);
   }
+
   return query;
-};
+}
 
-const insertData = async (data) => {
-  const savedCategory = await getCategoryInfo();
+function filterAll(data) {
+  let totalRev = 0;
+  let totalExp = 0;
 
-  const result = savedCategory.filter(
-    (item) =>
-      item.categoryId === data.categoryId &&
-      item.fantasyName === data.fantasyName &&
-      item.description === data.description
+  data.forEach(e => {
+    if (e.categoryId === 'revenue') totalRev += e.value;
+    else if (e.categoryId !== 'stocks') totalExp += e.value;
+  });
+
+  return {
+    expenses: data.sort((a, b) => new Date(b.date) - new Date(a.date)),
+    totalRev,
+    totalExp,
+    difference: totalRev - totalExp,
+  };
+}
+
+exports.getData = async params => {
+  if (!params.startDate) {
+    throw new Error('At least one date is required');
+  }
+
+  const query = buildQuery(
+    params.startDate,
+    params.endDate,
+    params.categoryIds,
+    params.descriptions,
+    params.valuesRange,
   );
 
-  if (result.length === 0 && data.fantasyName !== undefined) {
-    const newCategory = {
+  const data = await DataModel.find(query);
+  return filterAll(data);
+};
+
+/* ---------------- CREATE SINGLE ---------------- */
+
+async function insertData(data) {
+  const savedCategory = await getCategoryInfo();
+
+  const exists = savedCategory.find(
+    item =>
+      item.categoryId === data.categoryId &&
+      item.fantasyName === data.fantasyName &&
+      item.description === data.description,
+  );
+
+  if (!exists && data.fantasyName) {
+    await createCategoryInfo({
       fantasyName: data.fantasyName,
       description: data.description,
       categoryId: data.categoryId,
-    };
-    createCategoryInfo(newCategory);
+    });
   }
 
-  const newData = {
-    date: data.date,
-    description: data.description,
-    ignore: data.ignore,
+  return DataModel.create({
+    date: data.date, // already computed
+    fantasyName: data.fantasyName ?? '',
+    name: data.name ?? '',
+    description: data.description ?? '',
     categoryId: data.categoryId,
-    totalInstallment: data.totalInstallment,
-    currentInstallment: data.currentInstallment, // Correctly set installment number
+    paymentType: data.paymentType ?? null,
     value: toPositiveBRL(data.value),
-  };
+    currentInstallment: data.currentInstallment ?? 1,
+    totalInstallment: data.totalInstallment ?? 1,
+  });
+}
 
-  await service.create(newData);
-};
+exports.createData = async data => {
+  const total = data.totalInstallment ?? 1;
 
-exports.createData = async (data) => {
-  try {
-    if (data.totalInstallment === 1) {
-      return await insertData(data);
-    } else {
-      for (let index = 0; index < data.totalInstallment; index++) {
-        const dateObj = new Date(data.date);
-        dateObj.setMonth(dateObj.getMonth() + index); // Increment month for each installment
-
-        await insertData({
-          date: dateObj.toISOString(),
-          description: data.description,
-          ignore: false,
-          categoryId: data.categoryId,
-          totalInstallment: data.totalInstallment,
-          currentInstallment: index + 1, // Correctly set installment number
-          value: data.value,
-        });
-      }
-    }
-  } catch (e) {
-    console.log(e);
+  // ✅ Single payment
+  if (total === 1) {
+    return insertData({
+      ...data,
+      date: computeStatementDate(data.date, 1),
+      currentInstallment: 1,
+    });
   }
 
-  // return await service.create(data);
-};
+  // ✅ Installments
+  const docs = [];
 
-exports.getByIdData = async (id) => {
-  console.log(id);
-  return await service.findOne({ _id: new ObjectId(id) });
-};
-
-exports.updateData = async (id, data) => {
-  console.log(id, data);
-  return await service.findByIdAndUpdate(id, data);
-};
-
-exports.deleteData = async (id) => {
-  return await service.findByIdAndDelete(id);
-};
-
-exports.inserMany = async (data) => {
-  // console.log(data);
-  const processData = async (dataArray) => {
-    await Promise.all(
-      dataArray.map(async (item) => {
-        await insertData({
-          date: new Date(item.date).toISOString(),
-          description: item.description,
-          ignore: false,
-          categoryId: item.type,
-          totalInstallment: 1,
-          currentInstallment: 1, // Correctly set installment number
-          value: item.value,
-          fantasyName: item.fantasyName,
-        });
-      })
+  for (let i = 0; i < total; i++) {
+    docs.push(
+      await insertData({
+        ...data,
+        date: computeStatementDate(data.date, i + 1),
+        currentInstallment: i + 1,
+      }),
     );
+  }
 
-    console.log('All insertions completed!');
-  };
-
-  processData(data);
+  return docs;
 };
+
+/* ---------------- INSERT MANY (IMPORT) ---------------- */
+
+exports.insertMany = async rows => {
+  const { validRows, duplicated } = await validateImport(rows);
+
+  if (validRows.length) {
+    await DataModel.insertMany(
+      validRows.map(r => ({
+        ...r,
+        date: computeStatementDate(
+          r.date,
+          r.currentInstallment ?? 1,
+        ),
+        value: Number(r.value),
+      })),
+      { ordered: false },
+    );
+  }
+
+  return {
+    inserted: validRows.length,
+    skipped: duplicated.length,
+    duplicated,
+  };
+};
+
+/* ---------------- CRUD ---------------- */
+
+exports.getByIdData = id =>
+  DataModel.findOne({ _id: new ObjectId(id) });
+
+exports.updateData = (id, data) =>
+  DataModel.findByIdAndUpdate(id, data, { new: true });
+
+exports.deleteData = id =>
+  DataModel.findByIdAndDelete(id);

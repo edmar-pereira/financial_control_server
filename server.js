@@ -3,8 +3,8 @@ const mongoose = require('mongoose');
 const Router = require('./routes/Routes');
 const swaggerUi = require('swagger-ui-express');
 const cors = require('cors');
-const fs = require('fs');
-const https = require('https');
+const fs = require('node:fs');
+const https = require('node:https');
 require('dotenv').config();
 
 const app = express();
@@ -18,31 +18,31 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerFile));
 app.use('/api/', Router);
 
-mongoose.connect(
-  process.env.MONGODB_URI || 'mongodb://localhost/CRUD',
-  {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  },
-  (err) => {
-    if (err) {
-      console.log(err);
-    } else {
-      console.log('Connected to MongoDB');
-      console.log({
-        host: mongoose.connection.host,
-        db: mongoose.connection.db.namespace,
-      });
-    }
-  }
-);
+const uri =
+  process.env.NODE_ENV === 'development'
+    ? process.env.MONGODB_URI_TEST
+    : process.env.MONGODB_URI;
+
+if (!uri) {
+  throw new Error('MongoDB URI is undefined. Check .env file');
+}
+
+mongoose
+  .connect(uri)
+  .then(() => {
+    console.log('Connected to MongoDB');
+    console.log({
+      host: mongoose.connection.host,
+      db: mongoose.connection.db.namespace,
+    });
+  })
+  .catch((err) => console.error(err));
 
 app.get('/health-check', (req, res) => {
   res.send('server is running');
 });
 
-
-if (process.env.LOCAL_DEV) {
+if (process.env.NODE_ENV === 'development') {
   const options = {
     key: fs.readFileSync('.cert/key.pem'),
     cert: fs.readFileSync('.cert/cert.pem'),

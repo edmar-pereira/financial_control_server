@@ -4,6 +4,8 @@ exports.getData = async (req, res) => {
   // console.log(req.body)
   try {
     const data = await service.getData(req.body);
+
+    console.log(data)
     res.json({ data, status: 'success' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -58,7 +60,9 @@ exports.deleteByIdData = async (req, res) => {
 
 exports.insertMany = async (req, res) => { 
   try {
-    const data = await service.inserMany(req.body);
+    const data = await service.insertMany(req.body);
+
+    console.log(JSON.stringify(data))
     res.json({ data, status: 'success' });
   } catch (err) {
     res.status(500).json({ error: err.message });
