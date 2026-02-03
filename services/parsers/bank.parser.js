@@ -1,14 +1,3 @@
-const XLSX = require('xlsx');
-
-const {
-  formatDateHeader,
-  toPositiveBRL,
-  parseTransaction,
-  AcceptThisPattern,
-} = require('../../utils/format');
-
-const { getCategoryCache, getCategoryFromCache } = require('../category.cache');
-
 exports.parseBankSheet = async (buffer) => {
   const workbook = XLSX.read(buffer, { type: 'buffer' });
   const sheetName = workbook.SheetNames[0];
@@ -22,7 +11,6 @@ exports.parseBankSheet = async (buffer) => {
 
       const mainType = row['__EMPTY'] || '';
       const headerDate = row['EXTRATO DE CONTA CORRENTE ']?.trim();
-
       const parsedDate = formatDateHeader(headerDate);
 
       const base = {
@@ -39,49 +27,29 @@ exports.parseBankSheet = async (buffer) => {
 
       const normalizePaymentType = (rawType = '') => {
         const type = rawType.toUpperCase();
-
         if (type.includes('DEBITO')) return 'DEBITO';
         if (type.includes('PIX')) return 'PIX';
         if (type.includes('SAQUE')) return 'SAQUE';
         if (type.includes('BOLETO')) return 'BOLETO';
         if (type.includes('LIQUIDO DE VENCIMENTO')) return 'PAGAMENTO';
-        if (type.includes('JUROS SALDO UTILIZ ATE LIMITE')) return 'JUROS';
-        if (type.includes('PAGAMENTO CONTA CELULAR EM CANAIS'))
-          return 'AGENDAMENTO';
-        if (type.includes('MENSALIDADE DE SEGURO')) return 'AGENDAMENTO';
-        if (type.includes('CONTA DE AGUA E ESGOTO EM CANAIS'))
-          return 'AGENDAMENTO';
-
+        if (type.includes('JUROS')) return 'JUROS';
         return 'OUTROS';
       };
 
-      const { autoRegisterCategory } = require('../category.auto.service');
-
-      const buildResult = async (fantasyName, paymentType, value) => {
+      // ✅ NOT async
+      const buildResult = (fantasyName, paymentType, value) => {
         const category = getCategoryFromCache(categoryMap, fantasyName);
-
-        // ✅ INSERÇÃO AUTOMÁTICA ACONTECE AQUI
-        if (category.category) {
-          await autoRegisterCategory({
-            fantasyName,
-            categoryId: category.category,
-            source: 'BANK',
-          });
-        }
 
         return {
           ...base,
           fantasyName,
           name: category.name || '',
           categoryId: category.category || 'uncategorized',
-          paymentType,
+          paymentType: normalizePaymentType(paymentType),
           value,
         };
       };
 
-      // -----------------------------
-      // FIXED SPLIT LOGIC (ONE TIME)
-      // -----------------------------
       const splitMainType = (text = '') => {
         const match = text.match(/^(.+?)\s{2,}(.+)$/);
         return {
@@ -93,7 +61,7 @@ exports.parseBankSheet = async (buffer) => {
       if (mainType.includes('SAQUE DINHEIRO')) {
         return buildResult(
           'SAQUE DINHEIRO BANCO 24H',
-          'SAQUE DINHEIRO',
+          'SAQUE',
           parseFloat(toPositiveBRL(row['__EMPTY_4'])),
         );
       }
@@ -102,33 +70,20 @@ exports.parseBankSheet = async (buffer) => {
         const { name } = splitMainType(mainType);
         return buildResult(
           name,
-          'PIX ENVIADO',
+          'PIX',
           parseFloat(toPositiveBRL(row['__EMPTY_4'])),
         );
       }
 
-      if (
-        mainType.includes('PIX RECEBIDO') ||
-        mainType.includes('LIQUIDO DE VENCIMENTO')
-      ) {
-        const { type, name } = splitMainType(mainType);
+      if (mainType.includes('PIX RECEBIDO')) {
+        const { name } = splitMainType(mainType);
         return buildResult(
           name,
-          type,
+          'PIX',
           parseFloat(toPositiveBRL(row['__EMPTY_3'])),
         );
       }
 
-      if (mainType.includes('DEBITO VISA ELECTRON BRASIL')) {
-        const val = parseTransaction(mainType);
-        return buildResult(
-          val.exp,
-          'DEBITO',
-          parseFloat(toPositiveBRL(row['__EMPTY_4'])),
-        );
-      }
-
-      // Fallback (safe)
       const { type, name } = splitMainType(mainType);
 
       return buildResult(
@@ -139,7 +94,6 @@ exports.parseBankSheet = async (buffer) => {
     })
     .filter(Boolean);
 
-  formatted.sort((a, b) => a.date - b.date);
-
+  formatted.sort((a, b) => new Date(a.date) - new Date(b.date));
   return formatted;
 };

@@ -6,10 +6,6 @@ exports.computeStatementDate = (purchaseDate, currentInstallment = 1) => {
 };
 
 exports.buildDuplicateKey = (row) => {
-  const purchaseDate =
-    row.date instanceof Date
-      ? row.date
-      : new Date(`${row.date}T00:00:00.000Z`);
 
   const date = exports.computeStatementDate(
     purchaseDate,

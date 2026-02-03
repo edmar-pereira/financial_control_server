@@ -60,7 +60,7 @@ exports.parseCreditCardSheet = async (buffer) => {
           description: '',
           categoryId: category.category || 'uncategorized',
           paymentType: 'CREDIT_CARD',
-          value: parseFloat(toPositiveBRL(row['Valor'])), // número com 2 casas
+          value: Number.parseFloat(toPositiveBRL(row['Valor'])), // número com 2 casas
           currentInstallment,
           totalInstallment,
         };
