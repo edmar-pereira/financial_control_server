@@ -55,15 +55,26 @@ exports.parseBankSheet = async (buffer) => {
         return 'OUTROS';
       };
 
-      const buildResult = (fantasyName, paymentType, value) => {
+      const { autoRegisterCategory } = require('../category.auto.service');
+
+      const buildResult = async (fantasyName, paymentType, value) => {
         const category = getCategoryFromCache(categoryMap, fantasyName);
+
+        // ✅ INSERÇÃO AUTOMÁTICA ACONTECE AQUI
+        if (category.category) {
+          await autoRegisterCategory({
+            fantasyName,
+            categoryId: category.category,
+            source: 'BANK',
+          });
+        }
 
         return {
           ...base,
           fantasyName,
           name: category.name || '',
           categoryId: category.category || 'uncategorized',
-          paymentType: normalizePaymentType(paymentType),
+          paymentType,
           value,
         };
       };

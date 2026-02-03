@@ -65,6 +65,7 @@ exports.insertMany = async (req, res) => {
     console.log(JSON.stringify(data))
     res.json({ data, status: 'success' });
   } catch (err) {
+    console.error('❌ Error in insertMany controller:', err);
     res.status(500).json({ error: err.message });
   }
 }

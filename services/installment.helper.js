@@ -1,6 +1,3 @@
-/**
- * purchaseDate + (currentInstallment - 1) months
- */
 exports.computeStatementDate = (purchaseDate, currentInstallment = 1) => {
   const d = new Date(purchaseDate);
   d.setMonth(d.getMonth() + (currentInstallment - 1));
@@ -8,12 +5,14 @@ exports.computeStatementDate = (purchaseDate, currentInstallment = 1) => {
   return d;
 };
 
-/**
- * Key used for duplicate detection
- */
 exports.buildDuplicateKey = (row) => {
+  const purchaseDate =
+    row.date instanceof Date
+      ? row.date
+      : new Date(`${row.date}T00:00:00.000Z`);
+
   const date = exports.computeStatementDate(
-    row.date,
+    purchaseDate,
     row.currentInstallment ?? 1
   );
 

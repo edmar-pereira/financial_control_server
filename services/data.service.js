@@ -30,12 +30,19 @@ function toPositiveBRL(value) {
 function computeStatementDate(purchaseDate, currentInstallment = 1) {
   const d = new Date(purchaseDate);
   d.setMonth(d.getMonth() + (currentInstallment - 1));
+  d.setHours(0, 0, 0, 0);
   return d;
 }
 
 /* ---------------- GET DATA ---------------- */
 
-function buildQuery(startDate, endDate, categoryIds, descriptions, valuesRange) {
+function buildQuery(
+  startDate,
+  endDate,
+  categoryIds,
+  descriptions,
+  valuesRange,
+) {
   const query = {};
 
   if (startDate) {
@@ -56,7 +63,7 @@ function buildQuery(startDate, endDate, categoryIds, descriptions, valuesRange) 
   if (categoryIds?.length) query.categoryId = { $in: categoryIds };
 
   if (descriptions?.length) {
-    const safe = descriptions.map(d =>
+    const safe = descriptions.map((d) =>
       d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
     );
     query.description = { $regex: safe.join('|'), $options: 'i' };
@@ -75,7 +82,7 @@ function filterAll(data) {
   let totalRev = 0;
   let totalExp = 0;
 
-  data.forEach(e => {
+  data.forEach((e) => {
     if (e.categoryId === 'revenue') totalRev += e.value;
     else if (e.categoryId !== 'stocks') totalExp += e.value;
   });
@@ -88,7 +95,7 @@ function filterAll(data) {
   };
 }
 
-exports.getData = async params => {
+exports.getData = async (params) => {
   if (!params.startDate) {
     throw new Error('At least one date is required');
   }
@@ -111,7 +118,7 @@ async function insertData(data) {
   const savedCategory = await getCategoryInfo();
 
   const exists = savedCategory.find(
-    item =>
+    (item) =>
       item.categoryId === data.categoryId &&
       item.fantasyName === data.fantasyName &&
       item.description === data.description,
@@ -138,7 +145,7 @@ async function insertData(data) {
   });
 }
 
-exports.createData = async data => {
+exports.createData = async (data) => {
   const total = data.totalInstallment ?? 1;
 
   // ✅ Single payment
@@ -173,14 +180,19 @@ exports.insertMany = async rows => {
 
   if (validRows.length) {
     await DataModel.insertMany(
-      validRows.map(r => ({
-        ...r,
-        date: computeStatementDate(
-          r.date,
-          r.currentInstallment ?? 1,
-        ),
-        value: Number(r.value),
-      })),
+      validRows.map(r => {
+        // 🔥 CRITICAL FIX: normalize string → Date
+        const purchaseDate = new Date(`${r.date}T00:00:00.000Z`);
+
+        return {
+          ...r,
+          date: computeStatementDate(
+            purchaseDate,
+            r.currentInstallment ?? 1
+          ),
+          value: Number(r.value),
+        };
+      }),
       { ordered: false },
     );
   }
@@ -192,13 +204,12 @@ exports.insertMany = async rows => {
   };
 };
 
+
 /* ---------------- CRUD ---------------- */
 
-exports.getByIdData = id =>
-  DataModel.findOne({ _id: new ObjectId(id) });
+exports.getByIdData = (id) => DataModel.findOne({ _id: new ObjectId(id) });
 
 exports.updateData = (id, data) =>
   DataModel.findByIdAndUpdate(id, data, { new: true });
 
-exports.deleteData = id =>
-  DataModel.findByIdAndDelete(id);
+exports.deleteData = (id) => DataModel.findByIdAndDelete(id);
