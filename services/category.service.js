@@ -39,10 +39,19 @@ exports.updateCategory = async (data) => {
   }
 };
 
-exports.getUniqueCategory = async () => {
-  const data = await categoryInfoService.find();
-  const result = [...new Set(data.map((item) => item.description))].sort(
-    (a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })
-  );
-  return result;
+exports.getUniqueCompanyName = async (name) => {
+  const query = {};
+
+  if (name) {
+    query.name = {
+      $regex: name,
+      $options: 'i',
+    };
+  }
+
+  const companyName = await categoryInfoService.distinct('companyName', query);
+
+  return companyName
+    .filter((d) => d && d.trim() !== '')
+    .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
 };

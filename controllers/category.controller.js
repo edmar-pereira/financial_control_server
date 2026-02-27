@@ -19,11 +19,13 @@ exports.updateCategory = async (req, res) => {
   }
 };
 
-exports.getUniqueCategory = async (req, res) => {
-  try {
-    const data = await service.getUniqueCategory();
-    res.json({ data, status: 200 });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+exports.getUniqueCompanyName = async (req, res) => {
+  const { name } = req.query;
+
+  const data = await service.getUniqueCompanyName(
+    name,
+  );
+
+  res.json({ data });
 };
+

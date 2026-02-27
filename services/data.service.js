@@ -1,210 +1,262 @@
-const moment = require('moment');
-const service = require('../models/data.model');
+const DataModel = require('../models/data.model');
 const { ObjectId } = require('mongodb');
-
+const { createCategoryInfo } = require('./category.info.service');
 const {
-  getCategoryInfo,
-  createCategoryInfo,
-} = require('../services/category.info.service');
+  computeStatementDate,
+  getPurchaseDate,
+} = require('./installment.helper');
+
+/* ---------------- HELPERS ---------------- */
 
 function toPositiveBRL(value) {
-  if (typeof value === 'number') {
-    return Math.abs(value); // Directly return the absolute value
-  }
+  if (typeof value === 'number') return Math.abs(value);
 
   if (typeof value === 'string') {
-    // Remove thousands separator (.) and replace decimal comma (,) with a dot
     if (value.includes(',')) {
-      value = value.replace(/\./g, '').replace(',', '.');
+      value = value.replaceAll('.', '').replace(',', '.');
     }
-
-    const numericValue = parseFloat(value);
-    return isNaN(numericValue) ? 0 : Math.abs(numericValue);
+    const numericValue = Number.parseFloat(value);
+    return Number.isNaN(numericValue) ? 0 : Math.abs(numericValue);
   }
 
-  // If value is neither string nor number, return 0
   return 0;
+}
+
+/* ---------------- QUERY HELPERS ---------------- */
+
+function buildQuery(
+  startDate,
+  endDate,
+  categoryIds,
+  descriptions,
+  valuesRange,
+) {
+  const query = {};
+
+  if (startDate) {
+    const finalEndDate =
+      endDate ||
+      (() => {
+        const [y, m] = startDate.split('-').map(Number);
+        const lastDay = new Date(y, m, 0).getDate();
+        return `${y}-${m.toString().padStart(2, '0')}-${lastDay}`;
+      })();
+
+    query.date = {
+      $gte: new Date(`${startDate}T00:00:00`),
+      $lte: new Date(`${finalEndDate}T23:59:59`),
+    };
+  }
+
+  if (categoryIds?.length) {
+    query.categoryId = { $in: categoryIds };
+  }
+
+  if (descriptions?.length) {
+    const safe = descriptions.map((d) =>
+      d.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`),
+    );
+    query.description = { $regex: safe.join('|'), $options: 'i' };
+  }
+
+  if (valuesRange?.min != null || valuesRange?.max != null) {
+    query.value = {};
+    if (valuesRange.min != null) query.value.$gte = Number(valuesRange.min);
+    if (valuesRange.max != null) query.value.$lte = Number(valuesRange.max);
+  }
+
+  return query;
 }
 
 function filterAll(data) {
   let totalRev = 0;
   let totalExp = 0;
 
-  // console.log(data);
-
   data.forEach((e) => {
-    if (e.categoryId === 'revenue' && e.ignore === false) {
-      totalRev += e.value;
-    } else if (e.ignore === false && e.categoryId !== 'stocks') {
-      totalExp += e.value;
-    }
+    if (e.categoryId === 'revenue') totalRev += e.value;
+    else if (e.categoryId !== 'stocks') totalExp += e.value;
   });
 
-  let sortedData = data.sort((a, b) => new Date(b.date) - new Date(a.date));
-
   return {
-    expenses: sortedData,
+    expenses: data.sort((a, b) => new Date(b.date) - new Date(a.date)),
     totalRev,
     totalExp,
     difference: totalRev - totalExp,
   };
 }
 
+/* ---------------- GET DATA ---------------- */
+
 exports.getData = async (params) => {
-  const { startDate, endDate, categoryIds, descriptions, values } = params;
+  if (!params.startDate) {
+    throw new Error('At least one date is required');
+  }
 
-  if (!startDate) throw new Error('At least one date is required');
+  const query = buildQuery(
+    params.startDate,
+    params.endDate,
+    params.categoryIds,
+    params.descriptions,
+    params.valuesRange,
+  );
 
-  let query = buildQuery(startDate, endDate, categoryIds, descriptions, values);
-
-  const data = await service.find(query);
-  // console.log(data)
+  const data = await DataModel.find(query);
   return filterAll(data);
 };
 
-// 🔹 Extracted function to build the query dynamically
-const buildQuery = (startDate, endDate, categoryIds, descriptions, values) => {
-  const query = {};
+/* ---------------- CREATE SINGLE ---------------- */
 
-  // console.log("Params:", startDate, endDate, categoryIds, descriptions, values);
+async function insertData(data) {
+  const fantasyName = data.fantasyName?.trim().toUpperCase();
 
-  // 🔹 1. Handle Date Filtering
-  if (startDate) {
-    let finalEndDate = endDate;
+  const computedDate = computeStatementDate(
+    data.date,
+    data.currentInstallment ?? 1,
+  );
 
-    // If no endDate is given, set it to the last day of the month
-    if (!endDate) {
-      const year = parseInt(startDate.split('-')[0], 10);
-      const month = parseInt(startDate.split('-')[1], 10);
+  if (fantasyName) {
+    await createCategoryInfo({
+      fantasyName,
+      categoryId: data.categoryId,
+      name: data.name ?? '',
+      // description: data.description ?? '',
+    });
+  }
 
-      // Get last day of the month
-      const lastDay = new Date(year, month, 0).getDate();
-      finalEndDate = `${year}-${month.toString().padStart(2, '0')}-${lastDay}`;
+  return DataModel.create({
+    date: computedDate,
+    fantasyName,
+    name: data.name ?? '',
+    description: data.description ?? '',
+    categoryId: data.categoryId,
+    paymentType: data.paymentType ?? null,
+    value: toPositiveBRL(data.value),
+    currentInstallment: data.currentInstallment ?? 1,
+    totalInstallment: data.totalInstallment ?? 1,
+  });
+}
+
+exports.createData = async (data) => {
+  const total = data.totalInstallment ?? 1;
+
+  const docs = [];
+
+  for (let i = 0; i < total; i++) {
+    docs.push(
+      await insertData({
+        ...data,
+        currentInstallment: i + 1,
+      }),
+    );
+  }
+
+  return docs;
+};
+
+/* ---------------- IMPORT MANY ---------------- */
+
+exports.insertMany = async (rows) => {
+  if (!rows?.length) return { inserted: 0, updated: 0 };
+
+  let inserted = 0;
+  let updated = 0;
+
+  for (const r of rows) {
+    const fantasyName = r.fantasyName?.trim().toUpperCase();
+    const total = r.totalInstallment ?? 1;
+    const baseInstallment = r.currentInstallment ?? 1;
+    const value = toPositiveBRL(r.value);
+
+    if (fantasyName) {
+      await createCategoryInfo({
+        fantasyName,
+        categoryId: r.categoryId,
+        name: r.name ?? '',
+      });
     }
 
-    query.date = {
-      $gte: new Date(`${startDate}T00:00:00.000Z`),
-      $lte: new Date(`${finalEndDate}T23:59:59.999Z`),
-    };
+    // 🔥 Only generate remaining installments
+    const remaining = total - baseInstallment + 1;
+
+    for (let i = 0; i < remaining; i++) {
+      const currentInstallment = baseInstallment + i;
+
+      const computedDate = computeStatementDate(r.date, currentInstallment);
+
+      const result = await DataModel.updateOne(
+        {
+          fantasyName,
+          date: computedDate,
+          value,
+          currentInstallment,
+        },
+        {
+          $setOnInsert: {
+            date: computedDate,
+            fantasyName,
+            name: r.name ?? '',
+            description: r.description ?? '',
+            categoryId: r.categoryId,
+            paymentType: r.paymentType ?? null,
+            value,
+            currentInstallment,
+            totalInstallment: total,
+          },
+        },
+        { upsert: true },
+      );
+
+      if (result.upsertedCount > 0) inserted++;
+      else updated++;
+    }
   }
 
-  // 🔹 2. Category Filtering
-  if (categoryIds?.length) {
-    query.categoryId = { $in: categoryIds };
+  return { inserted, updated };
+};
+
+/* ---------------- CRUD ---------------- */
+
+exports.getByIdData = (id) => DataModel.findOne({ _id: new ObjectId(id) });
+
+exports.updateData = async (id, data) => {
+  const updated = await DataModel.findByIdAndUpdate(id, data, { new: true });
+
+  if (updated?.fantasyName) {
+    await createCategoryInfo({
+      fantasyName: updated.fantasyName,
+      categoryId: updated.categoryId,
+      name: updated.name ?? '',
+      // description: updated.description ?? '',
+    });
   }
 
-  // 🔹 3. Description Filtering (Case-Insensitive & Partial Match)
-  if (descriptions?.length) {
-    const regexSafeDescriptions = descriptions.map((desc) =>
-      desc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    );
-    query.description = {
-      $regex: regexSafeDescriptions.join('|'),
+  return updated;
+};
+
+exports.deleteData = (id) => DataModel.findByIdAndDelete(id);
+
+exports.getUniqueDescriptions = async (fantasyName, name) => {
+  const query = {};
+
+  if (fantasyName) {
+    query.fantasyName = {
+      $regex: fantasyName,
       $options: 'i',
     };
   }
 
-  // 🔹 4. Value Filtering (Allow decimals & match exact or near values)
-  if (values?.length) {
-    const parsedValues = values.map((v) => parseFloat(v));
-    query.value = { $in: parsedValues };
-  }
-  return query;
-};
-
-const insertData = async (data) => {
-  const savedCategory = await getCategoryInfo();
-
-  const result = savedCategory.filter(
-    (item) =>
-      item.categoryId === data.categoryId &&
-      item.fantasyName === data.fantasyName &&
-      item.description === data.description
-  );
-
-  if (result.length === 0 && data.fantasyName !== undefined) {
-    const newCategory = {
-      fantasyName: data.fantasyName,
-      description: data.description,
-      categoryId: data.categoryId,
+  if (name) {
+    query.name = {
+      $regex: name,
+      $options: 'i',
     };
-    createCategoryInfo(newCategory);
   }
 
-  const newData = {
-    date: data.date,
-    description: data.description,
-    ignore: data.ignore,
-    categoryId: data.categoryId,
-    totalInstallment: data.totalInstallment,
-    currentInstallment: data.currentInstallment, // Correctly set installment number
-    value: toPositiveBRL(data.value),
-  };
+  const descriptions = await DataModel.distinct('description', query);
 
-  await service.create(newData);
+  return descriptions
+    .filter((d) => d && d.trim() !== '')
+    .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
 };
 
-exports.createData = async (data) => {
-  try {
-    if (data.totalInstallment === 1) {
-      return await insertData(data);
-    } else {
-      for (let index = 0; index < data.totalInstallment; index++) {
-        const dateObj = new Date(data.date);
-        dateObj.setMonth(dateObj.getMonth() + index); // Increment month for each installment
 
-        await insertData({
-          date: dateObj.toISOString(),
-          description: data.description,
-          ignore: false,
-          categoryId: data.categoryId,
-          totalInstallment: data.totalInstallment,
-          currentInstallment: index + 1, // Correctly set installment number
-          value: data.value,
-        });
-      }
-    }
-  } catch (e) {
-    console.log(e);
-  }
-
-  // return await service.create(data);
-};
-
-exports.getByIdData = async (id) => {
-  console.log(id);
-  return await service.findOne({ _id: new ObjectId(id) });
-};
-
-exports.updateData = async (id, data) => {
-  console.log(id, data);
-  return await service.findByIdAndUpdate(id, data);
-};
-
-exports.deleteData = async (id) => {
-  return await service.findByIdAndDelete(id);
-};
-
-exports.inserMany = async (data) => {
-  // console.log(data);
-  const processData = async (dataArray) => {
-    await Promise.all(
-      dataArray.map(async (item) => {
-        await insertData({
-          date: new Date(item.date).toISOString(),
-          description: item.description,
-          ignore: false,
-          categoryId: item.type,
-          totalInstallment: 1,
-          currentInstallment: 1, // Correctly set installment number
-          value: item.value,
-          fantasyName: item.fantasyName,
-        });
-      })
-    );
-
-    console.log('All insertions completed!');
-  };
-
-  processData(data);
-};
