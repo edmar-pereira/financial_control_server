@@ -1,9 +1,51 @@
+const XLSX = require('xlsx');
+const CategoryInfo = require('../../models/category.info.model');
+
+const { formatDateHeader } = require('../../utils/format');
+const { AcceptThisPattern, toPositiveBRL } = require('../../utils/format');
+
 exports.parseBankSheet = async (buffer) => {
   const workbook = XLSX.read(buffer, { type: 'buffer' });
   const sheetName = workbook.SheetNames[0];
   const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
 
-  const categoryMap = await getCategoryCache();
+  /* -------------------------------------------------
+     🔥 BUSCA DIRETO DO BANCO (SEM CACHE)
+  -------------------------------------------------- */
+  const categories = await CategoryInfo.find().lean();
+
+  const categoryMap = new Map();
+  categories.forEach((c) => {
+    categoryMap.set(c.fantasyName, c);
+  });
+
+  /* -------------------------------------------------
+     🔥 NORMALIZE PAYMENT TYPE
+  -------------------------------------------------- */
+  const normalizePaymentType = (rawType = '') => {
+    const type = rawType.toUpperCase();
+
+    if (type.includes('DEBITO')) return 'DEBITO';
+    if (type.includes('PIX')) return 'PIX';
+    if (type.includes('SAQUE')) return 'SAQUE';
+    if (type.includes('BOLETO')) return 'BOLETO';
+    if (type.includes('LIQUIDO DE VENCIMENTO')) return 'PAGAMENTO';
+    if (type.includes('JUROS')) return 'JUROS';
+
+    return 'OUTROS';
+  };
+
+  const splitMainType = (text = '') => {
+    const match = new RegExp(/^(.+?)\s{2,}(.+)$/).exec(text);
+
+    let type = match ? match[1].trim() : text.trim();
+    let name = match ? match[2].trim() : '';
+
+    name = name.replace(/^\d{2}\/\d{2}\s+/, '');
+    name = name.trim().toUpperCase();
+
+    return { type, name };
+  };
 
   const formatted = jsonData
     .map((row) => {
@@ -25,75 +67,67 @@ exports.parseBankSheet = async (buffer) => {
         totalInstallment: 1,
       };
 
-      const normalizePaymentType = (rawType = '') => {
-        const type = rawType.toUpperCase();
-        if (type.includes('DEBITO')) return 'DEBITO';
-        if (type.includes('PIX')) return 'PIX';
-        if (type.includes('SAQUE')) return 'SAQUE';
-        if (type.includes('BOLETO')) return 'BOLETO';
-        if (type.includes('LIQUIDO DE VENCIMENTO')) return 'PAGAMENTO';
-        if (type.includes('JUROS')) return 'JUROS';
-        return 'OUTROS';
-      };
-
-      // ✅ NOT async
       const buildResult = (fantasyName, paymentType, value) => {
-        const category = getCategoryFromCache(categoryMap, fantasyName);
+        const categoryInfo = categoryMap.get(fantasyName);
 
         return {
           ...base,
           fantasyName,
-          name: category.name || '',
-          categoryId: category.category || 'uncategorized',
+          name: categoryInfo?.name || '',
+          description: categoryInfo?.description || '',
+          categoryId: categoryInfo?.categoryId || 'uncategorized',
           paymentType: normalizePaymentType(paymentType),
           value,
         };
       };
 
-      const splitMainType = (text = '') => {
-        const match = text.match(/^(.+?)\s{2,}(.+)$/);
-        return {
-          type: match ? match[1].trim() : text.trim(),
-          name: match ? match[2].trim() : text.trim(),
-        };
-      };
+      /* --------------------------
+         REGRAS ESPECIAIS
+      --------------------------- */
 
       if (mainType.includes('SAQUE DINHEIRO')) {
         return buildResult(
           'SAQUE DINHEIRO BANCO 24H',
           'SAQUE',
-          parseFloat(toPositiveBRL(row['__EMPTY_4'])),
+          Number.parseFloat(toPositiveBRL(row['__EMPTY_4'])),
         );
       }
 
       if (mainType.includes('PIX ENVIADO')) {
         const { name } = splitMainType(mainType);
+
         return buildResult(
           name,
           'PIX',
-          parseFloat(toPositiveBRL(row['__EMPTY_4'])),
+          Number.parseFloat(toPositiveBRL(row['__EMPTY_4'])),
         );
       }
 
       if (mainType.includes('PIX RECEBIDO')) {
         const { name } = splitMainType(mainType);
+
         return buildResult(
           name,
           'PIX',
-          parseFloat(toPositiveBRL(row['__EMPTY_3'])),
+          Number.parseFloat(toPositiveBRL(row['__EMPTY_3'])),
         );
       }
+
+      /* --------------------------
+         REGRA PADRÃO
+      --------------------------- */
 
       const { type, name } = splitMainType(mainType);
 
       return buildResult(
         name,
         type,
-        parseFloat(toPositiveBRL(row['__EMPTY_4'])),
+        Number.parseFloat(toPositiveBRL(row['__EMPTY_4'])),
       );
     })
     .filter(Boolean);
 
   formatted.sort((a, b) => new Date(a.date) - new Date(b.date));
+
   return formatted;
 };

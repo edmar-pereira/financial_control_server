@@ -1,24 +1,16 @@
 const CategoryInfo = require('../models/category.info.model');
 
-/**
- * Insere ou atualiza automaticamente uma categoria
- * SOMENTE quando a origem permite (ex: BANK)
- */
-exports.autoRegisterCategory = async ({ fantasyName, categoryId, source }) => {
+exports.autoRegisterCategory = async ({ fantasyName, categoryId }) => {
   if (!fantasyName || !categoryId) return;
 
-  // 🔒 regra: só aprende automaticamente do banco
-  if (source !== 'BANK') return;
+  const exists = await CategoryInfo.exists({ fantasyName });
 
-  await CategoryInfo.updateOne(
-    { fantasyName }, // 🔎 filtro
-    {
-      $set: { categoryId, source }, // 📝 atualização
-      $setOnInsert: {
-        fantasyName,
-        createdAt: new Date(),
-      },
-    },
-    { upsert: true }, // ⭐ AQUI acontece a inserção
-  );
+  if (exists) return;
+
+  await CategoryInfo.create({
+    fantasyName,
+    categoryId,
+    createdAt: new Date(),
+  });
+
 };

@@ -18,10 +18,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerFile));
 app.use('/api/', Router);
 
-const uri =
-  process.env.NODE_ENV === 'development'
-    ? process.env.MONGODB_URI_TEST
-    : process.env.MONGODB_URI;
+const uri = process.env.MONGODB_URI;
 
 if (!uri) {
   throw new Error('MongoDB URI is undefined. Check .env file');

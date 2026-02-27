@@ -69,3 +69,17 @@ exports.insertMany = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 }
+
+exports.getUniqueDescriptions = async (req, res) => {
+  const { fantasyName, name } = req.query;
+
+  const data = await service.getUniqueDescriptions(
+    fantasyName,
+    name,
+  );
+
+  res.json({ data });
+};
+
+
+

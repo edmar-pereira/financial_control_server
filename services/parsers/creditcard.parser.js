@@ -1,6 +1,6 @@
 const { parse } = require('csv-parse/sync');
 const { toPositiveBRL } = require('../../utils/format');
-const { getCategoryCache, getCategoryFromCache } = require('../category.cache');
+const CategoryInfo = require('../../models/category.info.model');
 
 /**
  * Faz o parse de um arquivo CSV de fatura de cartão de crédito.
@@ -9,11 +9,18 @@ const { getCategoryCache, getCategoryFromCache } = require('../category.cache');
  */
 exports.parseCreditCardSheet = async (buffer) => {
   try {
-    // 🔥 Uma chamada cacheada para categorias
-    const categoryMap = await getCategoryCache();
+    /* -------------------------------------------------
+       🔥 BUSCA CATEGORIAS DIRETO DO BANCO
+    -------------------------------------------------- */
+    const categories = await CategoryInfo.find().lean();
+
+    const categoryMap = new Map();
+    categories.forEach((c) => {
+      categoryMap.set(c.fantasyName, c);
+    });
+
     const csvString = buffer.toString('utf-8');
 
-    // Parse do CSV
     const records = parse(csvString, {
       columns: true,
       delimiter: ';',
@@ -23,13 +30,21 @@ exports.parseCreditCardSheet = async (buffer) => {
 
     const parsedData = records
       .map((row) => {
-        const fantasyName = row['Estabelecimento']?.trim() || '';
+        let fantasyName = row['Estabelecimento']?.trim() || '';
 
         // 🔹 Ignorar pagamentos de fatura
         if (fantasyName === 'Pagamento de fatura') return null;
 
+        // 🔥 Normalização obrigatória
+        fantasyName = fantasyName.toUpperCase();
+
+        /* ---------------------------
+           DATA
+        ---------------------------- */
         const rawDate = row['\ufeffData']?.trim() || row['Data']?.trim();
+
         const [day, month, year] = rawDate?.split('/') || [];
+
         const date =
           year && month && day
             ? new Date(`${year}-${month}-${day}T00:00:00Z`)
@@ -37,17 +52,25 @@ exports.parseCreditCardSheet = async (buffer) => {
                 .split('T')[0]
             : null;
 
-        const category = getCategoryFromCache(categoryMap, fantasyName);
+        /* ---------------------------
+           BUSCAR CATEGORIA
+        ---------------------------- */
+        const categoryInfo = categoryMap.get(fantasyName);
 
-        // 🔹 Processar parcelas
+        /* ---------------------------
+           PARCELAS
+        ---------------------------- */
         let currentInstallment = 1;
         let totalInstallment = 1;
+
         const parcelText = row['Parcela']?.trim(); // ex: "1 de 6"
-        if (parcelText && parcelText.includes('de')) {
+
+        if (parcelText?.includes('de')) {
           const [curr, total] = parcelText
             .split('de')
-            .map((v) => parseInt(v.trim(), 10));
-          if (!isNaN(curr) && !isNaN(total)) {
+            .map((v) => Number.parseInt(v.trim(), 10));
+
+          if (!Number.isNaN(curr) && !Number.isNaN(total)) {
             currentInstallment = curr;
             totalInstallment = total;
           }
@@ -56,21 +79,21 @@ exports.parseCreditCardSheet = async (buffer) => {
         return {
           date,
           fantasyName,
-          name: category.name || '',
+          name: categoryInfo?.name || '',
           description: '',
-          categoryId: category.category || 'uncategorized',
+          categoryId: categoryInfo?.categoryId || 'uncategorized',
           paymentType: 'CREDIT_CARD',
-          value: Number.parseFloat(toPositiveBRL(row['Valor'])), // número com 2 casas
+          value: Number.parseFloat(toPositiveBRL(row['Valor'])),
           currentInstallment,
           totalInstallment,
         };
       })
-      .filter(Boolean); // remove entradas null (Pagamento de fatura)
+      .filter(Boolean);
 
-    console.log('🧾 Parsed credit card data:', parsedData.slice(0, 3));
     parsedData.sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
     );
+
     return parsedData;
   } catch (error) {
     console.error('❌ Error parsing credit card CSV:', error.message);

@@ -1,11 +1,10 @@
-const moment = require('moment');
 const DataModel = require('../models/data.model');
 const { ObjectId } = require('mongodb');
-const { validateImport } = require('./import.validation');
+const { createCategoryInfo } = require('./category.info.service');
 const {
-  getCategoryInfo,
-  createCategoryInfo,
-} = require('./category.info.service');
+  computeStatementDate,
+  getPurchaseDate,
+} = require('./installment.helper');
 
 /* ---------------- HELPERS ---------------- */
 
@@ -14,27 +13,16 @@ function toPositiveBRL(value) {
 
   if (typeof value === 'string') {
     if (value.includes(',')) {
-      value = value.replace(/\./g, '').replace(',', '.');
+      value = value.replaceAll('.', '').replace(',', '.');
     }
-    const numericValue = parseFloat(value);
-    return isNaN(numericValue) ? 0 : Math.abs(numericValue);
+    const numericValue = Number.parseFloat(value);
+    return Number.isNaN(numericValue) ? 0 : Math.abs(numericValue);
   }
 
   return 0;
 }
 
-/**
- * 💳 Compute statement date for installments
- * purchaseDate + (currentInstallment - 1) months
- */
-function computeStatementDate(purchaseDate, currentInstallment = 1) {
-  const d = new Date(purchaseDate);
-  d.setMonth(d.getMonth() + (currentInstallment - 1));
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-/* ---------------- GET DATA ---------------- */
+/* ---------------- QUERY HELPERS ---------------- */
 
 function buildQuery(
   startDate,
@@ -55,16 +43,18 @@ function buildQuery(
       })();
 
     query.date = {
-      $gte: new Date(`${startDate}T00:00:00.000Z`),
-      $lte: new Date(`${finalEndDate}T23:59:59.999Z`),
+      $gte: new Date(`${startDate}T00:00:00`),
+      $lte: new Date(`${finalEndDate}T23:59:59`),
     };
   }
 
-  if (categoryIds?.length) query.categoryId = { $in: categoryIds };
+  if (categoryIds?.length) {
+    query.categoryId = { $in: categoryIds };
+  }
 
   if (descriptions?.length) {
     const safe = descriptions.map((d) =>
-      d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+      d.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`),
     );
     query.description = { $regex: safe.join('|'), $options: 'i' };
   }
@@ -95,6 +85,8 @@ function filterAll(data) {
   };
 }
 
+/* ---------------- GET DATA ---------------- */
+
 exports.getData = async (params) => {
   if (!params.startDate) {
     throw new Error('At least one date is required');
@@ -115,26 +107,25 @@ exports.getData = async (params) => {
 /* ---------------- CREATE SINGLE ---------------- */
 
 async function insertData(data) {
-  const savedCategory = await getCategoryInfo();
+  const fantasyName = data.fantasyName?.trim().toUpperCase();
 
-  const exists = savedCategory.find(
-    (item) =>
-      item.categoryId === data.categoryId &&
-      item.fantasyName === data.fantasyName &&
-      item.description === data.description,
+  const computedDate = computeStatementDate(
+    data.date,
+    data.currentInstallment ?? 1,
   );
 
-  if (!exists && data.fantasyName) {
+  if (fantasyName) {
     await createCategoryInfo({
-      fantasyName: data.fantasyName,
-      description: data.description,
+      fantasyName,
       categoryId: data.categoryId,
+      name: data.name ?? '',
+      // description: data.description ?? '',
     });
   }
 
   return DataModel.create({
-    date: data.date, // already computed
-    fantasyName: data.fantasyName ?? '',
+    date: computedDate,
+    fantasyName,
     name: data.name ?? '',
     description: data.description ?? '',
     categoryId: data.categoryId,
@@ -148,23 +139,12 @@ async function insertData(data) {
 exports.createData = async (data) => {
   const total = data.totalInstallment ?? 1;
 
-  // ✅ Single payment
-  if (total === 1) {
-    return insertData({
-      ...data,
-      date: computeStatementDate(data.date, 1),
-      currentInstallment: 1,
-    });
-  }
-
-  // ✅ Installments
   const docs = [];
 
   for (let i = 0; i < total; i++) {
     docs.push(
       await insertData({
         ...data,
-        date: computeStatementDate(data.date, i + 1),
         currentInstallment: i + 1,
       }),
     );
@@ -173,43 +153,110 @@ exports.createData = async (data) => {
   return docs;
 };
 
-/* ---------------- INSERT MANY (IMPORT) ---------------- */
+/* ---------------- IMPORT MANY ---------------- */
 
-exports.insertMany = async rows => {
-  const { validRows, duplicated } = await validateImport(rows);
+exports.insertMany = async (rows) => {
+  if (!rows?.length) return { inserted: 0, updated: 0 };
 
-  if (validRows.length) {
-    await DataModel.insertMany(
-      validRows.map(r => {
-        // 🔥 CRITICAL FIX: normalize string → Date
-        const purchaseDate = new Date(`${r.date}T00:00:00.000Z`);
+  let inserted = 0;
+  let updated = 0;
 
-        return {
-          ...r,
-          date: computeStatementDate(
-            purchaseDate,
-            r.currentInstallment ?? 1
-          ),
-          value: Number(r.value),
-        };
-      }),
-      { ordered: false },
-    );
+  for (const r of rows) {
+    const fantasyName = r.fantasyName?.trim().toUpperCase();
+    const total = r.totalInstallment ?? 1;
+    const baseInstallment = r.currentInstallment ?? 1;
+    const value = toPositiveBRL(r.value);
+
+    if (fantasyName) {
+      await createCategoryInfo({
+        fantasyName,
+        categoryId: r.categoryId,
+        name: r.name ?? '',
+      });
+    }
+
+    // 🔥 Only generate remaining installments
+    const remaining = total - baseInstallment + 1;
+
+    for (let i = 0; i < remaining; i++) {
+      const currentInstallment = baseInstallment + i;
+
+      const computedDate = computeStatementDate(r.date, currentInstallment);
+
+      const result = await DataModel.updateOne(
+        {
+          fantasyName,
+          date: computedDate,
+          value,
+          currentInstallment,
+        },
+        {
+          $setOnInsert: {
+            date: computedDate,
+            fantasyName,
+            name: r.name ?? '',
+            description: r.description ?? '',
+            categoryId: r.categoryId,
+            paymentType: r.paymentType ?? null,
+            value,
+            currentInstallment,
+            totalInstallment: total,
+          },
+        },
+        { upsert: true },
+      );
+
+      if (result.upsertedCount > 0) inserted++;
+      else updated++;
+    }
   }
 
-  return {
-    inserted: validRows.length,
-    skipped: duplicated.length,
-    duplicated,
-  };
+  return { inserted, updated };
 };
-
 
 /* ---------------- CRUD ---------------- */
 
 exports.getByIdData = (id) => DataModel.findOne({ _id: new ObjectId(id) });
 
-exports.updateData = (id, data) =>
-  DataModel.findByIdAndUpdate(id, data, { new: true });
+exports.updateData = async (id, data) => {
+  const updated = await DataModel.findByIdAndUpdate(id, data, { new: true });
+
+  if (updated?.fantasyName) {
+    await createCategoryInfo({
+      fantasyName: updated.fantasyName,
+      categoryId: updated.categoryId,
+      name: updated.name ?? '',
+      // description: updated.description ?? '',
+    });
+  }
+
+  return updated;
+};
 
 exports.deleteData = (id) => DataModel.findByIdAndDelete(id);
+
+exports.getUniqueDescriptions = async (fantasyName, name) => {
+  const query = {};
+
+  if (fantasyName) {
+    query.fantasyName = {
+      $regex: fantasyName,
+      $options: 'i',
+    };
+  }
+
+  if (name) {
+    query.name = {
+      $regex: name,
+      $options: 'i',
+    };
+  }
+
+  const descriptions = await DataModel.distinct('description', query);
+
+  return descriptions
+    .filter((d) => d && d.trim() !== '')
+    .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+};
+
+

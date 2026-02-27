@@ -7,12 +7,13 @@ const {
   updateData,
   deleteByIdData,
   insertMany,
+  getUniqueDescriptions,
 } = require('../controllers/data.controller');
 
 const {
   getCategory,
   updateCategory,
-  getUniqueCategory,
+  getUniqueCompanyName,
 } = require('../controllers/category.controller');
 
 const { uploadData } = require('../controllers/upload.controller');
@@ -39,11 +40,12 @@ router.route('/data/create').post(createData);
 router.route('/data/getById/:id').get(getByIdData);
 router.route('/data/update/:id').put(updateData);
 router.route('/data/delete/:id').delete(deleteByIdData);
+router.get('/data/getUniqueCompanyName', getUniqueCompanyName);
+router.get('/data/getUniqueDescriptions', getUniqueDescriptions);
 
 // Category
 router.route('/data/getCategory/').get(getCategory);
 router.route('/data/updateCategory/').put(updateCategory);
-router.route('/data/getUniqueCategory/').get(getUniqueCategory);
 
 //upload file
 router.post('/upload', upload.single('file'), uploadData);
