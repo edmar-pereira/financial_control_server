@@ -32,7 +32,7 @@ exports.updateCategory = async (data) => {
     }));
 
     const result = await service.bulkWrite(bulkOps);
-    console.log('Collection updated successfully', result.nModified);
+    // console.log('Collection updated successfully', result.nModified);
     return result;
   } catch (error) {
     console.error('Error updating collection:', error);

@@ -3,30 +3,17 @@
 function parseDateString(dateStr) {
   if (!dateStr) return null;
 
+  // If Date object → convert to yyyy-mm-dd
   if (dateStr instanceof Date) {
     if (isNaN(dateStr.getTime())) return null;
-
-    return new Date(
-      Date.UTC(
-        dateStr.getUTCFullYear(),
-        dateStr.getUTCMonth(),
-        dateStr.getUTCDate(),
-      ),
-    );
+    return dateStr.toISOString().slice(0, 10);
   }
 
   if (typeof dateStr !== 'string') return null;
 
-  // DD/MM/YYYY
-  if (dateStr.includes('/')) {
-    const [day, month, year] = dateStr.split('/');
-    return new Date(Date.UTC(+year, +month - 1, +day));
-  }
-
-  // YYYY-MM-DD
-  if (dateStr.includes('-')) {
-    const [year, month, day] = dateStr.split('-');
-    return new Date(Date.UTC(+year, +month - 1, +day));
+  // Accept only yyyy-mm-dd
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return dateStr;
   }
 
   return null;
@@ -43,32 +30,27 @@ exports.getPurchaseDate = (rowOrDate) => {
 };
 
 exports.computeStatementDate = (purchaseDate, currentInstallment = 1) => {
-  const base = parseDateString(purchaseDate);
-  if (!base) return null;
+  const baseStr = parseDateString(purchaseDate);
+  if (!baseStr) return null;
 
-  const year = base.getUTCFullYear();
-  const month = base.getUTCMonth();
-  const day = base.getUTCDate();
+  const [year, month, day] = baseStr.split('-').map(Number);
 
-  const targetMonth = month + (currentInstallment - 1);
+  // Create UTC date ONLY for safe month math
+  const baseDate = new Date(Date.UTC(year, month - 1, 1));
 
-  const firstOfTarget = new Date(Date.UTC(year, targetMonth, 1));
+  baseDate.setUTCMonth(baseDate.getUTCMonth() + (currentInstallment - 1));
 
+  const targetYear = baseDate.getUTCFullYear();
+  const targetMonth = baseDate.getUTCMonth();
+
+  // Get last day of target month
   const lastDay = new Date(
-    Date.UTC(
-      firstOfTarget.getUTCFullYear(),
-      firstOfTarget.getUTCMonth() + 1,
-      0,
-    ),
+    Date.UTC(targetYear, targetMonth + 1, 0),
   ).getUTCDate();
 
   const safeDay = Math.min(day, lastDay);
 
-  return new Date(
-    Date.UTC(
-      firstOfTarget.getUTCFullYear(),
-      firstOfTarget.getUTCMonth(),
-      safeDay,
-    ),
-  );
+  const finalDate = new Date(Date.UTC(targetYear, targetMonth, safeDay));
+
+  return finalDate.toISOString().slice(0, 10);
 };

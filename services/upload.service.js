@@ -5,7 +5,7 @@ exports.uploadFile = async (file) => {
   if (!file) throw new Error('No file provided');
 
   const mimetype = file.mimetype || '';
-  console.log('📂 Uploaded file type:', mimetype);
+  // console.log('📂 Uploaded file type:', mimetype);
 
   if (mimetype.includes('csv')) {
     return await parseCreditCardSheet(file.buffer);
