@@ -73,7 +73,7 @@ exports.parseBankSheet = async (buffer) => {
         return {
           ...base,
           fantasyName,
-          name: categoryInfo?.name || '',
+          name: categoryInfo?.companyName || '',
           description: categoryInfo?.description || '',
           categoryId: categoryInfo?.categoryId || 'uncategorized',
           paymentType: normalizePaymentType(paymentType),

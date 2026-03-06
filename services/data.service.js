@@ -118,7 +118,7 @@ async function insertData(data) {
     await createCategoryInfo({
       fantasyName,
       categoryId: data.categoryId,
-      name: data.name ?? '',
+      companyName: data.name ?? '',
       // description: data.description ?? '',
     });
   }
@@ -171,7 +171,7 @@ exports.insertMany = async (rows) => {
       await createCategoryInfo({
         fantasyName,
         categoryId: r.categoryId,
-        name: r.name ?? '',
+        companyName: r.name ?? '',
       });
     }
 
@@ -225,7 +225,7 @@ exports.updateData = async (id, data) => {
     await createCategoryInfo({
       fantasyName: updated.fantasyName,
       categoryId: updated.categoryId,
-      name: updated.name ?? '',
+      companyName: updated.name ?? '',
       // description: updated.description ?? '',
     });
   }

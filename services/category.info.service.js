@@ -11,15 +11,10 @@ exports.createCategoryInfo = async (data) => {
     categoryId: data.categoryId,
   };
 
-  // 🔥 Só atualiza name se vier preenchido
-  if (data.name && data.name.trim() !== '') {
-    updatePayload.name = data.name.trim();
+  // 🔥 update companyName
+  if (data.companyName && data.companyName.trim() !== '') {
+    updatePayload.companyName = data.companyName.trim();
   }
-
-  // 🔥 Só atualiza description se vier preenchida
-  // if (data.description && data.description.trim() !== '') {
-  //   updatePayload.description = data.description.trim();
-  // }
 
   await service.updateOne(
     { fantasyName },
