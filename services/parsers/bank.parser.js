@@ -31,6 +31,8 @@ exports.parseBankSheet = async (buffer) => {
     if (type.includes('BOLETO')) return 'BOLETO';
     if (type.includes('LIQUIDO DE VENCIMENTO')) return 'PAGAMENTO';
     if (type.includes('JUROS')) return 'JUROS';
+    if (type.includes('INVESTIMENTO')) return 'INVESTIMENTO';
+    if (type.includes('CREDITO')) return 'CREDITO';
 
     return 'OUTROS';
   };
@@ -98,7 +100,7 @@ exports.parseBankSheet = async (buffer) => {
 
         return buildResult(
           name,
-          'PIX',
+          'INVESTIMENTO',
           Number.parseFloat(toPositiveBRL(row['__EMPTY_4'])),
         );
       }
@@ -109,6 +111,56 @@ exports.parseBankSheet = async (buffer) => {
         return buildResult(
           name,
           'PIX',
+          Number.parseFloat(toPositiveBRL(row['__EMPTY_3'])),
+        );
+      }
+
+      if (mainType.includes('APLICACAO CDB/RDB')) {
+        return buildResult(
+          row['__EMPTY'],
+          'INVESTIMENTO',
+          Number.parseFloat(toPositiveBRL(row['__EMPTY_4'])),
+        );
+      }
+
+      if (mainType.includes('IOF ADICIONAL')) {
+        return buildResult(
+          'IOF ADICIONAL',
+          'JUROS',
+          Number.parseFloat(toPositiveBRL(row['__EMPTY_4'])),
+        );
+      }
+
+      if (mainType.includes('IOF IMPOSTO OPERACOES FINANCEIRAS')) {
+        return buildResult(
+          'IOF IMPOSTO OPERACOES FINANCEIRAS',
+          'JUROS',
+          Number.parseFloat(toPositiveBRL(row['__EMPTY_4'])),
+        );
+      }
+
+      if (mainType.includes('JUROS SALDO UTILIZ ATE LIMITE')) {
+        return buildResult(
+          'JUROS SALDO UTILIZ ATE LIMITE',
+          'JUROS',
+          Number.parseFloat(toPositiveBRL(row['__EMPTY_4'])),
+        );
+      }
+
+      if (mainType.includes('CNPJ 033372251000156')) {
+        const { name } = splitMainType(mainType);
+
+        return buildResult(
+          name,
+          'LIQUIDO DE VENCIMENTO',
+          Number.parseFloat(toPositiveBRL(row['__EMPTY_3'])),
+        );
+      }
+
+      if (mainType.includes('REMUNERACAO APLICACAO AUTOMATICA')) {
+        return buildResult(
+          row['__EMPTY'],
+          'CREDITO',
           Number.parseFloat(toPositiveBRL(row['__EMPTY_3'])),
         );
       }
