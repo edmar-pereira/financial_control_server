@@ -79,7 +79,7 @@ exports.parseCreditCardSheet = async (buffer) => {
         return {
           date,
           fantasyName,
-          name: categoryInfo?.name || '',
+          name: categoryInfo?.companyName || '',
           description: '',
           categoryId: categoryInfo?.categoryId || 'uncategorized',
           paymentType: 'CREDIT_CARD',
