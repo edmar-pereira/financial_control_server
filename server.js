@@ -35,30 +35,6 @@ mongoose
   })
   .catch((err) => console.error(err));
 
-app.get('/health', async (req, res) => {
-  try {
-    if (mongoose.connection.readyState !== 1) {
-      return res.status(500).json({
-        status: 'DOWN',
-        database: 'not connected',
-      });
-    }
-
-    // ping simples no Mongo
-    await mongoose.connection.db.admin().ping();
-
-    res.status(200).json({
-      status: 'UP',
-      database: 'connected',
-      timestamp: new Date(),
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: 'ERROR',
-      error: error.message,
-    });
-  }
-});
 
 if (process.env.NODE_ENV === 'development') {
   const options = {
