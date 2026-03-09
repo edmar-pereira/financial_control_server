@@ -26,7 +26,8 @@ exports.parseBankSheet = async (buffer) => {
     const type = rawType.toUpperCase();
 
     if (type.includes('DEBITO')) return 'DEBITO';
-    if (type.includes('PIX')) return 'PIX';
+    if (type.includes('PIX ENVIADO')) return 'PIX ENVIADO';
+    if (type.includes('PIX RECEBIDO')) return 'PIX RECEBIDO';
     if (type.includes('SAQUE')) return 'SAQUE';
     if (type.includes('BOLETO')) return 'BOLETO';
     if (type.includes('LIQUIDO DE VENCIMENTO')) return 'PAGAMENTO';
@@ -100,7 +101,7 @@ exports.parseBankSheet = async (buffer) => {
 
         return buildResult(
           name,
-          'INVESTIMENTO',
+          'PIX ENVIADO',
           Number.parseFloat(toPositiveBRL(row['__EMPTY_4'])),
         );
       }
@@ -110,7 +111,7 @@ exports.parseBankSheet = async (buffer) => {
 
         return buildResult(
           name,
-          'PIX',
+          'PIX RECEBIDO',
           Number.parseFloat(toPositiveBRL(row['__EMPTY_3'])),
         );
       }
