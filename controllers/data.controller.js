@@ -5,7 +5,7 @@ exports.getData = async (req, res) => {
   try {
     const data = await service.getData(req.body);
 
-    console.log(data)
+    // console.log(data)
     res.json({ data, status: 'success' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -62,7 +62,7 @@ exports.insertMany = async (req, res) => {
   try {
     const data = await service.insertMany(req.body);
 
-    console.log(JSON.stringify(data))
+    // console.log(JSON.stringify(data))
     res.json({ data, status: 'success' });
   } catch (err) {
     console.error('❌ Error in insertMany controller:', err);

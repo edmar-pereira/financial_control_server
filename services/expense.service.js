@@ -20,7 +20,5 @@ exports.findByCompositeKeys = async (rows) => {
     };
   });
 
-  console.log('DUPLICATE SEARCH CONDITIONS:', conditions);
-
   return data.find({ $or: conditions }).lean();
 };

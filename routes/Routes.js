@@ -17,6 +17,7 @@ const {
 } = require('../controllers/category.controller');
 
 const { uploadData } = require('../controllers/upload.controller');
+const mongoose = require('mongoose');
 
 const router = express.Router();
 
@@ -51,5 +52,21 @@ router.route('/data/updateCategory/').put(updateCategory);
 router.post('/upload', upload.single('file'), uploadData);
 
 router.route('/data/insertmany/').post(insertMany);
+
+router.get('/health', async (req, res) => {
+  try {
+    await mongoose.connection.db.admin().ping();
+
+    res.json({
+      status: 'UP',
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'ERROR',
+      error: error.message,
+    });
+  }
+});
 
 module.exports = router;

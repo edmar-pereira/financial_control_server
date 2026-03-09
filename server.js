@@ -35,9 +35,6 @@ mongoose
   })
   .catch((err) => console.error(err));
 
-app.get('/health-check', (req, res) => {
-  res.send('server is running');
-});
 
 if (process.env.NODE_ENV === 'development') {
   const options = {

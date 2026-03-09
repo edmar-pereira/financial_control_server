@@ -4,14 +4,8 @@ const { normalizeKey } = require('../utils/normalizeKey');
 
 exports.validateImport = async (rows) => {
   const existing = await expenseService.findByCompositeKeys(rows);
-
-  console.log('EXISTING DB ENTRIES FOR DUPLICATE CHECK:', existing);
-
   const dbKeys = new Set(existing.map(buildDuplicateKey));
-
-  console.log('EXISTING DB KEYS:', dbKeys);
   const fileKeys = new Set();
-
   const validRows = [];
   const duplicated = [];
 
