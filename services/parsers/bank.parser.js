@@ -30,10 +30,10 @@ exports.parseBankSheet = async (buffer) => {
     if (type.includes('PIX RECEBIDO')) return 'PIX RECEBIDO';
     if (type.includes('SAQUE')) return 'SAQUE';
     if (type.includes('BOLETO')) return 'BOLETO';
-    if (type.includes('LIQUIDO DE VENCIMENTO')) return 'PAGAMENTO';
+    if (type.includes('LIQUIDO DE VENCIMENTO')) return 'RECEITA';
     if (type.includes('JUROS')) return 'JUROS';
     if (type.includes('INVESTIMENTO')) return 'INVESTIMENTO';
-    if (type.includes('CREDITO')) return 'CREDITO';
+    if (type.includes('REMUNERACAO AUTOMATICA')) return 'REMUNERACAO AUTOMATICA';
 
     return 'OUTROS';
   };
@@ -161,7 +161,7 @@ exports.parseBankSheet = async (buffer) => {
       if (mainType.includes('REMUNERACAO APLICACAO AUTOMATICA')) {
         return buildResult(
           row['__EMPTY'],
-          'CREDITO',
+          'REMUNERACAO AUTOMATICA',
           Number.parseFloat(toPositiveBRL(row['__EMPTY_3'])),
         );
       }
