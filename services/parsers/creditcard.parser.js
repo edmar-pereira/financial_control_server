@@ -82,7 +82,7 @@ exports.parseCreditCardSheet = async (buffer) => {
           name: categoryInfo?.companyName || '',
           description: '',
           categoryId: categoryInfo?.categoryId || 'uncategorized',
-          paymentType: 'CREDIT_CARD',
+          paymentType: 'CREDITO',
           value: Number.parseFloat(toPositiveBRL(row['Valor'])),
           currentInstallment,
           totalInstallment,
