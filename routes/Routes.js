@@ -14,6 +14,7 @@ const {
   getCategory,
   updateCategory,
   getUniqueCompanyName,
+  getAllCategoryInfo
 } = require('../controllers/category.controller');
 
 const { uploadData } = require('../controllers/upload.controller');
@@ -47,6 +48,8 @@ router.get('/data/getUniqueDescriptions', getUniqueDescriptions);
 // Category
 router.route('/data/getCategory/').get(getCategory);
 router.route('/data/updateCategory/').put(updateCategory);
+
+router.get('/category/getAllCategoryInfo', getAllCategoryInfo);
 
 //upload file
 router.post('/upload', upload.single('file'), uploadData);

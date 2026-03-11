@@ -216,4 +216,4 @@ environments:
     modified: 1762010207651
     isPrivate: false
   data:
-    LOCAL_ENDPOINT: https://localhost:3001
+    LOCAL_ENDPOINT: https://localhost:3008

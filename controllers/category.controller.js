@@ -1,4 +1,5 @@
 const service = require('../services/category.service');
+const categoryInfoService = require('../services/category.info.service');
 
 exports.getCategory = async (req, res) => {
   try {
@@ -22,10 +23,16 @@ exports.updateCategory = async (req, res) => {
 exports.getUniqueCompanyName = async (req, res) => {
   const { name } = req.query;
 
-  const data = await service.getUniqueCompanyName(
-    name,
-  );
+  const data = await service.getUniqueCompanyName(name);
 
   res.json({ data });
 };
 
+exports.getAllCategoryInfo = async (req, res) => {
+  try {
+    const data = await categoryInfoService.getCategoryInfo();
+    res.json({ data, status: 200 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
