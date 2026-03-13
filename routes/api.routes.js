@@ -1,5 +1,8 @@
 const express = require('express');
 const multer = require('multer');
+const auth = require('../controllers/auth.controller');
+const authMiddleware = require('../middleware/auth.middleware');
+
 const {
   getData,
   createData,
@@ -14,7 +17,7 @@ const {
   getCategory,
   updateCategory,
   getUniqueCompanyName,
-  getAllCategoryInfo
+  getAllCategoryInfo,
 } = require('../controllers/category.controller');
 
 const { uploadData } = require('../controllers/upload.controller');
@@ -35,26 +38,29 @@ router.use(async (req, _res, next) => {
   next();
 });
 
-// Data
-router.route('/data/getData/').post(getData); // convert get to post to include body
 
-router.route('/data/create').post(createData);
-router.route('/data/getById/:id').get(getByIdData);
-router.route('/data/update/:id').put(updateData);
-router.route('/data/delete/:id').delete(deleteByIdData);
-router.get('/data/getUniqueCompanyName', getUniqueCompanyName);
-router.get('/data/getUniqueDescriptions', getUniqueDescriptions);
+// Data
+// Data
+router.post('/data/getData', authMiddleware, getData);
+router.post('/data/create', authMiddleware, createData);
+router.get('/data/getById/:id', authMiddleware, getByIdData);
+router.put('/data/update/:id', authMiddleware, updateData);
+router.delete('/data/delete/:id', authMiddleware, deleteByIdData);
+
+router.get('/data/getUniqueCompanyName', authMiddleware, getUniqueCompanyName);
+router.get('/data/getUniqueDescriptions', authMiddleware, getUniqueDescriptions);
 
 // Category
-router.route('/data/getCategory/').get(getCategory);
-router.route('/data/updateCategory/').put(updateCategory);
+router.get('/data/getCategory', authMiddleware, getCategory);
+router.put('/data/updateCategory', authMiddleware, updateCategory);
 
-router.get('/category/getAllCategoryInfo', getAllCategoryInfo);
+router.get('/category/getAllCategoryInfo', authMiddleware, getAllCategoryInfo);
 
-//upload file
+// upload file
 router.post('/upload', upload.single('file'), uploadData);
 
-router.route('/data/insertmany/').post(insertMany);
+// insert many
+router.post('/data/insertmany', authMiddleware, insertMany);
 
 router.get('/health', async (req, res) => {
   try {
