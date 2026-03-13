@@ -21,15 +21,14 @@ app.use(
   cors({
     origin: function (origin, callback) {
       if (!origin) return callback(null, true); // permite curl / server to server
-
+      console.log('allowedOrigins ===> ',allowedOrigins);
       console.log('CORS origin ==> ', origin);
+      console.log('allowedOrigins.includes(origin) ===> ', allowedOrigins.includes(origin));
 
       if (allowedOrigins.includes(origin)) {
         console.log(origin, 'is not allowed by CORS');
         return callback(null, true);
       }
-
-      
 
       return callback(new Error('Not allowed by CORS'));
     },
