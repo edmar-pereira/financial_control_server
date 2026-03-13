@@ -6,6 +6,7 @@ const AuthRouter = require('./routes/auth.routes');
 const swaggerUi = require('swagger-ui-express');
 const cors = require('cors');
 const fs = require('node:fs');
+const path = require('node:path');
 const https = require('node:https');
 require('dotenv').config();
 
