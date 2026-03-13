@@ -6,7 +6,7 @@ exports.getData = async (req, res) => {
     const data = await service.getData(req.body);
 
     // console.log(data)
-    res.json({ data, status: 'success' });
+    res.json({ data, status: 200 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -23,18 +23,17 @@ exports.getMonths = async (req, res) => {
 
 exports.createData = async (req, res) => {
   try {
-    const data = await service.createData(req.body);
-    res.json({ status: 'success' });
+    await service.createData(req.body);
+    res.json({ status: 200 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
 exports.getByIdData = async (req, res) => {
-
   try {
     const data = await service.getByIdData(req.params.id);
-    res.json({ data, status: 'success' });
+    res.json({ data, status: 200 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -43,7 +42,7 @@ exports.getByIdData = async (req, res) => {
 exports.updateData = async (req, res) => {
   try {
     const data = await service.updateData(req.params.id, req.body);
-    res.json({ data, status: 'success' });
+    res.json({ data, status: 200 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -52,34 +51,28 @@ exports.updateData = async (req, res) => {
 exports.deleteByIdData = async (req, res) => {
   try {
     const data = await service.deleteData(req.params.id);
-    res.json({ data, status: 'success' });
+    res.json({ data, status: 200 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-exports.insertMany = async (req, res) => { 
+exports.insertMany = async (req, res) => {
   try {
     const data = await service.insertMany(req.body);
 
     // console.log(JSON.stringify(data))
-    res.json({ data, status: 'success' });
+    res.json({ data, status: 200 });
   } catch (err) {
     console.error('❌ Error in insertMany controller:', err);
     res.status(500).json({ error: err.message });
   }
-}
+};
 
 exports.getUniqueDescriptions = async (req, res) => {
   const { fantasyName, name } = req.query;
 
-  const data = await service.getUniqueDescriptions(
-    fantasyName,
-    name,
-  );
+  const data = await service.getUniqueDescriptions(fantasyName, name);
 
   res.json({ data });
 };
-
-
-

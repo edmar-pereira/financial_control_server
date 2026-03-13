@@ -16,7 +16,7 @@ exports.uploadData = async (req, res) => {
     const data = await uploadFile(req.file);
 
     res.json({
-      status: 'success',
+      status: 200,
       count: Array.isArray(data) ? data.length : undefined,
       data,
     });
