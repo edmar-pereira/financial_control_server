@@ -23,6 +23,7 @@ app.use(
       if (!origin) return callback(null, true); // permite curl / server to server
 
       if (allowedOrigins.includes(origin)) {
+        console.log(origin, 'is not allowed by CORS');
         return callback(null, true);
       }
 
