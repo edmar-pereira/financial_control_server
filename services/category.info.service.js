@@ -22,3 +22,7 @@ exports.createCategoryInfo = async (data) => {
     { upsert: true },
   );
 };
+
+exports.deleteCategoryInfo = async (id) => {
+  return await service.findByIdAndDelete(id);
+};

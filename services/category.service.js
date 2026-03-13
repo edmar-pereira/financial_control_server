@@ -22,20 +22,30 @@ exports.getCategory = async () => {
 };
 
 exports.updateCategory = async (data) => {
+  console.log(JSON.stringify(data));
+
   try {
     const bulkOps = data.map((item) => ({
       updateOne: {
-        filter: { id: item.id }, // Match documents by "id"
-        update: { $set: item }, // Update fields with new values
-        upsert: true, // Insert document if it doesn't exist
+        filter: { _id: item.id },
+        update: {
+          $set: {
+            fantasyName: item.fantasyName,
+            companyName: item.companyName,
+            categoryId: item.categoryId,
+          },
+        },
+        upsert: false,
       },
     }));
 
-    const result = await service.bulkWrite(bulkOps);
-    // console.log('Collection updated successfully', result.nModified);
+    const result = await categoryInfoService.bulkWrite(bulkOps);
+
+
     return result;
   } catch (error) {
     console.error('Error updating collection:', error);
+    throw error;
   }
 };
 

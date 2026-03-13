@@ -13,10 +13,22 @@ exports.getCategory = async (req, res) => {
 
 exports.updateCategory = async (req, res) => {
   try {
+    if (!Array.isArray(req.body)) {
+      return res.status(400).json({
+        error: 'Body must be an array',
+      });
+    }
+
     const data = await service.updateCategory(req.body);
-    res.json({ data, status: 200 });
+
+    res.json({
+      status: 200,
+      data,
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({
+      error: err.message,
+    });
   }
 };
 
@@ -36,3 +48,12 @@ exports.getAllCategoryInfo = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+exports.deleteCategoryInfo = async (req, res) => {
+  try {
+    const result = await categoryInfoService.deleteCategoryInfo(req.params.id);
+    res.json({ data: result, status: 200 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};  

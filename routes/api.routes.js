@@ -18,6 +18,7 @@ const {
   updateCategory,
   getUniqueCompanyName,
   getAllCategoryInfo,
+  deleteCategoryInfo,
 } = require('../controllers/category.controller');
 
 const { uploadData } = require('../controllers/upload.controller');
@@ -38,7 +39,6 @@ router.use(async (req, _res, next) => {
   next();
 });
 
-
 // Data
 // Data
 router.post('/data/getData', authMiddleware, getData);
@@ -48,14 +48,21 @@ router.put('/data/update/:id', authMiddleware, updateData);
 router.delete('/data/delete/:id', authMiddleware, deleteByIdData);
 
 router.get('/data/getUniqueCompanyName', authMiddleware, getUniqueCompanyName);
-router.get('/data/getUniqueDescriptions', authMiddleware, getUniqueDescriptions);
+router.get(
+  '/data/getUniqueDescriptions',
+  authMiddleware,
+  getUniqueDescriptions,
+);
 
 // Category
-router.get('/data/getCategory', authMiddleware, getCategory);
-router.put('/data/updateCategory', authMiddleware, updateCategory);
-
+router.get('/category/getCategory', authMiddleware, getCategory);
+router.put('/category/updateCategory', authMiddleware, updateCategory);
 router.get('/category/getAllCategoryInfo', authMiddleware, getAllCategoryInfo);
-
+router.delete(
+  '/category/deleteCategoryInfo/:id',
+  authMiddleware,
+  deleteCategoryInfo,
+);
 // upload file
 router.post('/upload', upload.single('file'), uploadData);
 
