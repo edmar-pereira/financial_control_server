@@ -21,12 +21,7 @@ app.use(
   cors({
     origin: function (origin, callback) {
       if (!origin) return callback(null, true); // permite curl / server to server
-      console.log('allowedOrigins ===> ',allowedOrigins);
-      console.log('CORS origin ==> ', origin);
-      console.log('allowedOrigins.includes(origin) ===> ', allowedOrigins.includes(origin));
-
       if (allowedOrigins.includes(origin)) {
-        console.log(origin, 'is not allowed by CORS');
         return callback(null, true);
       }
 
@@ -43,6 +38,11 @@ app.use(cookieParser());
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerFile));
 app.use('/api/', Router);
 app.use('/auth/', AuthRouter);
+
+// Fallback para SPA
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
 
 if (!uri) {
   throw new Error('MongoDB URI is undefined. Check .env file');
