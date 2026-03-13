@@ -6,7 +6,7 @@ const AuthRouter = require('./routes/auth.routes');
 const swaggerUi = require('swagger-ui-express');
 const cors = require('cors');
 const fs = require('node:fs');
-const path = require('node:path');
+// const path = require('node:path');
 const https = require('node:https');
 require('dotenv').config();
 
@@ -40,10 +40,10 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerFile));
 app.use('/api/', Router);
 app.use('/auth/', AuthRouter);
 
-// Fallback para SPA
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-});
+// // Fallback para SPA
+// app.get('*', (req, res) => {
+//   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+// });
 
 if (!uri) {
   throw new Error('MongoDB URI is undefined. Check .env file');
