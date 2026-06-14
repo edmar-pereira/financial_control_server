@@ -1,11 +1,10 @@
 const service = require('../services/data.service');
 
 exports.getData = async (req, res) => {
-  // console.log(req.body)
   try {
     const data = await service.getData(req.body);
 
-    // console.log(data)
+    // console.log(JSON.stringify(data.expenses, null, 2));
     res.json({ data, status: 200 });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -70,9 +69,9 @@ exports.insertMany = async (req, res) => {
 };
 
 exports.getUniqueDescriptions = async (req, res) => {
-  const { fantasyName, name } = req.query;
+  const { description } = req.query;
 
-  const data = await service.getUniqueDescriptions(fantasyName, name);
+  const data = await service.getUniqueDescriptions(description);
 
   res.json({ data });
 };

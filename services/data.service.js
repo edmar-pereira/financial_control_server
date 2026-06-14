@@ -1,10 +1,7 @@
+const crypto = require('crypto');
 const DataModel = require('../models/data.model');
 const { ObjectId } = require('mongodb');
 const { createCategoryInfo } = require('./category.info.service');
-const {
-  computeStatementDate,
-  getPurchaseDate,
-} = require('./installment.helper');
 
 /* ---------------- HELPERS ---------------- */
 
@@ -34,35 +31,56 @@ function buildQuery(
   const query = {};
 
   if (startDate) {
-    const finalEndDate =
-      endDate ||
-      (() => {
-        const [y, m] = startDate.split('-').map(Number);
-        const lastDay = new Date(y, m, 0).getDate();
-        return `${y}-${m.toString().padStart(2, '0')}-${lastDay}`;
-      })();
+    const [startYear, startMonth, startDay] = startDate.split('-').map(Number);
+
+    const start = new Date(Date.UTC(startYear, startMonth - 1, startDay));
+
+    let endExclusive;
+
+    if (endDate) {
+      const [endYear, endMonth, endDay] = endDate.split('-').map(Number);
+
+      // primeiro instante do dia seguinte
+      endExclusive = new Date(Date.UTC(endYear, endMonth - 1, endDay + 1));
+    } else {
+      // primeiro dia do próximo mês
+      endExclusive = new Date(Date.UTC(startYear, startMonth, 1));
+    }
 
     query.date = {
-      $gte: new Date(`${startDate}T00:00:00`),
-      $lte: new Date(`${finalEndDate}T23:59:59`),
+      $gte: start,
+      $lt: endExclusive,
     };
+
   }
 
   if (categoryIds?.length) {
-    query.categoryId = { $in: categoryIds };
+    query.categoryId = {
+      $in: Array.isArray(categoryIds) ? categoryIds : [categoryIds],
+    };
   }
 
   if (descriptions?.length) {
-    const safe = descriptions.map((d) =>
-      d.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`),
+    const safeDescriptions = descriptions.map((d) =>
+      d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
     );
-    query.description = { $regex: safe.join('|'), $options: 'i' };
+
+    query.description = {
+      $regex: safeDescriptions.join('|'),
+      $options: 'i',
+    };
   }
 
-  if (valuesRange?.min != null || valuesRange?.max != null) {
+  if (valuesRange && (valuesRange.min != null || valuesRange.max != null)) {
     query.value = {};
-    if (valuesRange.min != null) query.value.$gte = Number(valuesRange.min);
-    if (valuesRange.max != null) query.value.$lte = Number(valuesRange.max);
+
+    if (valuesRange.min != null) {
+      query.value.$gte = Number(valuesRange.min);
+    }
+
+    if (valuesRange.max != null) {
+      query.value.$lte = Number(valuesRange.max);
+    }
   }
 
   return query;
@@ -109,10 +127,12 @@ exports.getData = async (params) => {
 async function insertData(data) {
   const fantasyName = data.fantasyName?.trim().toUpperCase();
 
-  const computedDate = computeStatementDate(
-    data.date,
-    data.currentInstallment ?? 1,
-  );
+  // const computedDate = computeStatementDate(
+  //   data.date,
+  //   data.currentInstallment ?? 1,
+  // );
+
+  const computedDate = '';
 
   if (fantasyName) {
     await createCategoryInfo({
@@ -156,7 +176,9 @@ exports.createData = async (data) => {
 /* ---------------- IMPORT MANY ---------------- */
 
 exports.insertMany = async (rows) => {
-  if (!rows?.length) return { inserted: 0, updated: 0 };
+  if (!rows?.length) return { msg: 'Sem dados para importar' };
+
+  // console.log(JSON.stringify(rows, null, 2));
 
   let inserted = 0;
   let updated = 0;
@@ -164,51 +186,48 @@ exports.insertMany = async (rows) => {
   for (const r of rows) {
     const fantasyName = r.fantasyName?.trim().toUpperCase();
     const total = r.totalInstallment ?? 1;
-    const baseInstallment = r.currentInstallment ?? 1;
+    const currentInstallment = r.currentInstallment ?? 1;
     const value = toPositiveBRL(r.value);
 
-    if (fantasyName) {
-      await createCategoryInfo({
-        fantasyName,
-        categoryId: r.categoryId,
-        companyName: r.name ?? '',
-      });
-    }
+    if (!fantasyName || !r.date) continue;
 
-    // 🔥 Only generate remaining installments
-    const remaining = total - baseInstallment + 1;
+    /* 🔑 ID ÚNICO DA COMPRA */
+    const purchaseId = crypto
+      .createHash('md5')
+      .update(`${fantasyName}_${r.date}_${value}_${total}_${r.name ?? ''}`)
+      .digest('hex');
 
-    for (let i = 0; i < remaining; i++) {
-      const currentInstallment = baseInstallment + i;
+    /* 🔄 GARANTE CATEGORY */
+    await createCategoryInfo({
+      fantasyName,
+      categoryId: r.categoryId,
+      companyName: r.name ?? '',
+    });
 
-      const computedDate = computeStatementDate(r.date, currentInstallment);
-
-      const result = await DataModel.updateOne(
-        {
+    const result = await DataModel.updateOne(
+      {
+        purchaseId,
+        currentInstallment,
+      },
+      {
+        $setOnInsert: {
+          purchaseId,
+          date: r.date,
           fantasyName,
-          date: computedDate,
+          name: r.name ?? '',
+          description: r.description ?? '',
+          categoryId: r.categoryId,
+          paymentType: r.paymentType ?? null,
           value,
           currentInstallment,
+          totalInstallment: total,
         },
-        {
-          $setOnInsert: {
-            date: computedDate,
-            fantasyName,
-            name: r.name ?? '',
-            description: r.description ?? '',
-            categoryId: r.categoryId,
-            paymentType: r.paymentType ?? null,
-            value,
-            currentInstallment,
-            totalInstallment: total,
-          },
-        },
-        { upsert: true },
-      );
+      },
+      { upsert: true },
+    );
 
-      if (result.upsertedCount > 0) inserted++;
-      else updated++;
-    }
+    if (result.upsertedCount > 0) inserted++;
+    else updated++;
   }
 
   return { inserted, updated };
@@ -235,19 +254,12 @@ exports.updateData = async (id, data) => {
 
 exports.deleteData = (id) => DataModel.findByIdAndDelete(id);
 
-exports.getUniqueDescriptions = async (fantasyName, name) => {
+exports.getUniqueDescriptions = async (description) => {
   const query = {};
 
-  if (fantasyName) {
-    query.fantasyName = {
-      $regex: fantasyName,
-      $options: 'i',
-    };
-  }
-
-  if (name) {
-    query.name = {
-      $regex: name,
+  if (description) {
+    query.description = {
+      $regex: description,
       $options: 'i',
     };
   }
@@ -256,7 +268,9 @@ exports.getUniqueDescriptions = async (fantasyName, name) => {
 
   return descriptions
     .filter((d) => d && d.trim() !== '')
-    .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+    .sort((a, b) =>
+      a.localeCompare(b, 'pt-BR', {
+        sensitivity: 'base',
+      }),
+    );
 };
-
-

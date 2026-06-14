@@ -41,7 +41,6 @@ exports.updateCategory = async (data) => {
 
     const result = await categoryInfoService.bulkWrite(bulkOps);
 
-
     return result;
   } catch (error) {
     console.error('Error updating collection:', error);
@@ -49,19 +48,23 @@ exports.updateCategory = async (data) => {
   }
 };
 
-exports.getUniqueCompanyName = async (name) => {
+exports.getUniqueCompanyName = async (value, field = 'companyName') => {
   const query = {};
 
-  if (name) {
-    query.name = {
-      $regex: name,
+  if (value) {
+    query[field] = {
+      $regex: value,
       $options: 'i',
     };
   }
 
-  const companyName = await categoryInfoService.distinct('companyName', query);
+  const result = await categoryInfoService.distinct(field, query);
 
-  return companyName
+  return result
     .filter((d) => d && d.trim() !== '')
-    .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+    .sort((a, b) =>
+      a.localeCompare(b, 'pt-BR', {
+        sensitivity: 'base',
+      }),
+    );
 };

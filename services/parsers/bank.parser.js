@@ -3,6 +3,9 @@ const CategoryInfo = require('../../models/category.info.model');
 
 const { formatDateHeader } = require('../../utils/format');
 const { AcceptThisPattern, toPositiveBRL } = require('../../utils/format');
+const {
+  checkForDuplicateTransactions,
+} = require('../../utils/checkForDuplicateTransactions');
 
 exports.parseBankSheet = async (buffer) => {
   const workbook = XLSX.read(buffer, { type: 'buffer' });
@@ -33,7 +36,8 @@ exports.parseBankSheet = async (buffer) => {
     if (type.includes('LIQUIDO DE VENCIMENTO')) return 'RECEITA';
     if (type.includes('JUROS')) return 'JUROS';
     if (type.includes('INVESTIMENTO')) return 'INVESTIMENTO';
-    if (type.includes('REMUNERACAO AUTOMATICA')) return 'REMUNERACAO AUTOMATICA';
+    if (type.includes('REMUNERACAO AUTOMATICA'))
+      return 'REMUNERACAO AUTOMATICA';
 
     return 'OUTROS';
   };
@@ -182,5 +186,12 @@ exports.parseBankSheet = async (buffer) => {
 
   formatted.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  return formatted;
+  console.log(JSON.stringify(formatted, null, 2));
+
+  const bankTransactions =
+    await checkForDuplicateTransactions(formatted);
+
+  // console.log(JSON.stringify(bankTransactions, null, 2));
+
+  return bankTransactions;
 };

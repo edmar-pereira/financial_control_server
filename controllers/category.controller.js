@@ -33,11 +33,14 @@ exports.updateCategory = async (req, res) => {
 };
 
 exports.getUniqueCompanyName = async (req, res) => {
-  const { name } = req.query;
+  const { value, field } = req.query;
 
-  const data = await service.getUniqueCompanyName(name);
+  const data = await service.getUniqueCompanyName(value, field);
 
-  res.json({ data });
+  return res.json({
+    status: 200,
+    data,
+  });
 };
 
 exports.getAllCategoryInfo = async (req, res) => {
@@ -56,4 +59,4 @@ exports.deleteCategoryInfo = async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-};  
+};

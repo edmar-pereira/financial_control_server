@@ -3,6 +3,12 @@ const { Schema } = mongoose;
 
 const schema = new Schema(
   {
+    purchaseId: {
+      type: String,
+      required: true,
+      index: true,
+    },
+
     date: {
       type: Date,
       required: true,
@@ -58,6 +64,9 @@ const schema = new Schema(
       default: 1,
       min: 1,
     },
+    statementDate: {
+      type: Date,
+    },
 
     ignore: {
       type: Boolean,
@@ -66,17 +75,10 @@ const schema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
-/**
- * ✅ Composite index to HELP duplicate detection
- * (not unique on purpose — validation happens in service layer)
- */
-schema.index({
-  fantasyName: 1,
-  date: 1,
-  value: 1,
-});
+/* 🔥 GARANTE QUE NUNCA DUPLICA */
+schema.index({ purchaseId: 1, currentInstallment: 1 }, { unique: true });
 
 module.exports = mongoose.model('data', schema);
