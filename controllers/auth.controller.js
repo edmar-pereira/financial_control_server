@@ -4,33 +4,38 @@ const User = require('../models/user.model');
 
 // LOGIN
 exports.login = async (req, res) => {
-  const { email, password } = req.body;
+  const { user: username, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ message: 'Email and password are required' });
+  if (!username || !password) {
+    return res.status(400).json({ message: 'User and password are required' });
   }
 
   try {
-    const user = await User.findOne({ email });
+      const hashedPassword = await bcrypt.hash(password, 10);
 
-    if (!user) {
+    console.log('USER:', username);
+    console.log('PASSWORD HASH:', hashedPassword);
+    const existingUser = await User.findOne({ user: username });
+
+    
+    if (!existingUser) {
       return res.status(401).json({ message: 'User not found' });
     }
 
-    const validPassword = await bcrypt.compare(password, user.password);
+    const validPassword = await bcrypt.compare(password, existingUser.password);
 
     if (!validPassword) {
       return res.status(401).json({ message: 'Invalid password' });
     }
 
     const accessToken = jwt.sign(
-      { id: user._id, email: user.email },
+      { id: existingUser._id, user: existingUser.user },
       process.env.ACCESS_SECRET,
       { expiresIn: '24h' },
     );
 
     const refreshToken = jwt.sign(
-      { id: user._id },
+      { id: existingUser._id },
       process.env.REFRESH_SECRET,
       { expiresIn: '30d' },
     );
