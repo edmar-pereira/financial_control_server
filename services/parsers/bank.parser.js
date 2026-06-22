@@ -186,7 +186,7 @@ exports.parseBankSheet = async (buffer) => {
 
   formatted.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  console.log(JSON.stringify(formatted, null, 2));
+  // console.log(JSON.stringify(formatted, null, 2));
 
   const bankTransactions =
     await checkForDuplicateTransactions(formatted);

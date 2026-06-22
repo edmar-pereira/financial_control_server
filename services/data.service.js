@@ -132,7 +132,7 @@ async function insertData(data) {
   //   data.currentInstallment ?? 1,
   // );
 
-  const computedDate = '';
+  // const computedDate = '';
 
   if (fantasyName) {
     await createCategoryInfo({
@@ -144,7 +144,7 @@ async function insertData(data) {
   }
 
   return DataModel.create({
-    date: computedDate,
+    date: data.date,
     fantasyName,
     name: data.name ?? '',
     description: data.description ?? '',
@@ -158,6 +158,8 @@ async function insertData(data) {
 
 exports.createData = async (data) => {
   const total = data.totalInstallment ?? 1;
+
+  console.log(data)
 
   const docs = [];
 
@@ -192,10 +194,10 @@ exports.insertMany = async (rows) => {
     if (!fantasyName || !r.date) continue;
 
     /* 🔑 ID ÚNICO DA COMPRA */
-    const purchaseId = crypto
-      .createHash('md5')
-      .update(`${fantasyName}_${r.date}_${value}_${total}_${r.name ?? ''}`)
-      .digest('hex');
+    // const purchaseId = crypto
+    //   .createHash('md5')
+    //   .update(`${fantasyName}_${r.date}_${value}_${total}_${r.name ?? ''}`)
+    //   .digest('hex');
 
     /* 🔄 GARANTE CATEGORY */
     await createCategoryInfo({
@@ -206,12 +208,12 @@ exports.insertMany = async (rows) => {
 
     const result = await DataModel.updateOne(
       {
-        purchaseId,
+        // purchaseId,
         currentInstallment,
       },
       {
         $setOnInsert: {
-          purchaseId,
+          // purchaseId,
           date: r.date,
           fantasyName,
           name: r.name ?? '',

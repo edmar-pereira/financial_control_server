@@ -3,11 +3,11 @@ const { Schema } = mongoose;
 
 const schema = new Schema(
   {
-    purchaseId: {
-      type: String,
-      required: true,
-      index: true,
-    },
+    // purchaseId: {
+    //   type: String,
+    //   required: true,
+    //   index: true,
+    // },
 
     date: {
       type: Date,
@@ -79,6 +79,8 @@ const schema = new Schema(
 );
 
 /* 🔥 GARANTE QUE NUNCA DUPLICA */
-schema.index({ purchaseId: 1, currentInstallment: 1 }, { unique: true });
+// schema.index({ purchaseId: 1, currentInstallment: 1 }, { unique: true });
+schema.index({ currentInstallment: 1 }, { unique: true });
+
 
 module.exports = mongoose.model('data', schema);
