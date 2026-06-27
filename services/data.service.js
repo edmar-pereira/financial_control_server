@@ -178,61 +178,50 @@ exports.createData = async (data) => {
 /* ---------------- IMPORT MANY ---------------- */
 
 exports.insertMany = async (rows) => {
-  if (!rows?.length) return { msg: 'Sem dados para importar' };
-
-  // console.log(JSON.stringify(rows, null, 2));
-
-  let inserted = 0;
-  let updated = 0;
-
-  for (const r of rows) {
-    const fantasyName = r.fantasyName?.trim().toUpperCase();
-    const total = r.totalInstallment ?? 1;
-    const currentInstallment = r.currentInstallment ?? 1;
-    const value = toPositiveBRL(r.value);
-
-    if (!fantasyName || !r.date) continue;
-
-    /* 🔑 ID ÚNICO DA COMPRA */
-    // const purchaseId = crypto
-    //   .createHash('md5')
-    //   .update(`${fantasyName}_${r.date}_${value}_${total}_${r.name ?? ''}`)
-    //   .digest('hex');
-
-    /* 🔄 GARANTE CATEGORY */
-    await createCategoryInfo({
-      fantasyName,
-      categoryId: r.categoryId,
-      companyName: r.name ?? '',
-    });
-
-    const result = await DataModel.updateOne(
-      {
-        // purchaseId,
-        currentInstallment,
-      },
-      {
-        $setOnInsert: {
-          // purchaseId,
-          date: r.date,
-          fantasyName,
-          name: r.name ?? '',
-          description: r.description ?? '',
-          categoryId: r.categoryId,
-          paymentType: r.paymentType ?? null,
-          value,
-          currentInstallment,
-          totalInstallment: total,
-        },
-      },
-      { upsert: true },
-    );
-
-    if (result.upsertedCount > 0) inserted++;
-    else updated++;
+  if (!rows?.length) {
+    return { msg: 'Sem dados para importar' };
   }
 
-  return { inserted, updated };
+  let inserted = 0;
+  let skipped = 0;
+
+  for (const r of rows) {
+    try {
+      const fantasyName = (r.fantasyName || '').trim().toUpperCase();
+
+      if (!fantasyName || !r.date) {
+        skipped++;
+        continue;
+      }
+
+      await createCategoryInfo({
+        fantasyName,
+        categoryId: r.categoryId || 'uncategorized',
+        companyName: r.name || '',
+      });
+
+      await DataModel.create({
+        date: r.date,
+        fantasyName,
+        name: r.name || '',
+        description: r.description || '',
+        categoryId: r.categoryId || 'uncategorized',
+        paymentType: r.paymentType || null,
+        value: toPositiveBRL(r.value),
+        currentInstallment: Number(r.currentInstallment || 1),
+        totalInstallment: Number(r.totalInstallment || 1),
+      });
+
+      inserted++;
+    } catch (err) {
+      console.error('Import error:', err);
+    }
+  }
+
+  return {
+    inserted,
+    skipped,
+  };
 };
 
 /* ---------------- CRUD ---------------- */
