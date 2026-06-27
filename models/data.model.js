@@ -64,9 +64,8 @@ const schema = new Schema(
       default: 1,
       min: 1,
     },
-    statementDate: {
-      type: Date,
-    },
+
+    statementDate: Date,
 
     ignore: {
       type: Boolean,
@@ -75,12 +74,20 @@ const schema = new Schema(
   },
   {
     timestamps: true,
-  },
+  }
 );
 
-/* 🔥 GARANTE QUE NUNCA DUPLICA */
-// schema.index({ purchaseId: 1, currentInstallment: 1 }, { unique: true });
-schema.index({ currentInstallment: 1 }, { unique: true });
+// Remove the old unique index!
+// schema.index({ currentInstallment: 1 }, { unique: true });
 
+// schema.index(
+//   {
+//     purchaseId: 1,
+//     currentInstallment: 1,
+//   },
+//   {
+//     unique: true,
+//   }
+// );
 
 module.exports = mongoose.model('data', schema);
