@@ -2,7 +2,7 @@ const { parseBankSheet } = require('./parsers/bank.parser');
 
 const { parseCreditCardSheet } = require('./parsers/creditcard.parser');
 
-exports.uploadFile = async ({ file, statementMonth, statementYear }) => {
+exports.uploadFile = async ({ file, body }) => {
   if (!file) {
     throw new Error('No file provided');
   }
@@ -11,6 +11,22 @@ exports.uploadFile = async ({ file, statementMonth, statementYear }) => {
 
   // CSV = cartão
   if (mimetype.includes('csv')) {
+
+    const statementMonth = Number(body.statementMonth);
+    const statementYear = Number(body.statementYear);
+
+    // validações
+    if (!statementMonth || statementMonth < 1 || statementMonth > 12) {
+      return res.status(400).json({
+        error: 'Invalid statement month',
+      });
+    }
+
+    if (!statementYear || statementYear < 2000) {
+      return res.status(400).json({
+        error: 'Invalid statement year',
+      });
+    }
     return await parseCreditCardSheet(file.buffer, {
       statementMonth,
       statementYear,

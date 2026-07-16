@@ -4,21 +4,24 @@ const Transaction = require('../models/data.model');
    NORMALIZE DATE
 -------------------------------------------------- */
 const normalizeDateForKey = (date) => {
-  if (!date) {
+  if (!date) return '';
+
+  // Already a date string
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return date;
+  }
+
+  const d = new Date(date);
+
+  if (Number.isNaN(d.getTime())) {
     return '';
   }
 
-  try {
-    const d = new Date(date);
-
-    if (Number.isNaN(d.getTime())) {
-      return '';
-    }
-
-    return d.toISOString().slice(0, 10);
-  } catch (err) {
-    return '';
-  }
+  return [
+    d.getUTCFullYear(),
+    String(d.getUTCMonth() + 1).padStart(2, '0'),
+    String(d.getUTCDate()).padStart(2, '0'),
+  ].join('-');
 };
 
 /* -------------------------------------------------
@@ -79,9 +82,13 @@ const checkForDuplicateTransactions = async (transactions = []) => {
     }));
   }
 
-  const minDate = new Date(Math.min(...validDates.map((d) => d.getTime())));
+const minDate = new Date(validDates[0]);
+minDate.setUTCHours(0, 0, 0, 0);
 
-  const maxDate = new Date(Math.max(...validDates.map((d) => d.getTime())));
+const maxDate = new Date(validDates[validDates.length - 1]);
+maxDate.setUTCHours(23, 59, 59, 999);
+
+
 
   /* -----------------------------------------
        LOAD EXISTING TRANSACTIONS
@@ -93,6 +100,8 @@ const checkForDuplicateTransactions = async (transactions = []) => {
       $lte: maxDate,
     },
   }).lean();
+
+
 
   /* -----------------------------------------
        CREATE LOOKUP SET
