@@ -21,6 +21,7 @@ const {
   deleteCategoryInfo,
 } = require('../controllers/category.controller');
 
+
 const { uploadData } = require('../controllers/upload.controller');
 const mongoose = require('mongoose');
 
@@ -47,7 +48,8 @@ router.get('/data/getById/:id', authMiddleware, getByIdData);
 router.put('/data/update/:id', authMiddleware, updateData);
 router.delete('/data/delete/:id', authMiddleware, deleteByIdData);
 
-router.get('/data/getUniqueCompanyName', authMiddleware, getUniqueCompanyName);
+router.get('/data/getUniqueCompanies', authMiddleware, getUniqueCompanyName);
+
 router.get(
   '/data/getUniqueDescriptions',
   authMiddleware,

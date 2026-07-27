@@ -35,7 +35,7 @@ exports.updateCategory = async (req, res) => {
 exports.getUniqueCompanyName = async (req, res) => {
   const { value, field } = req.query;
 
-  const data = await service.getUniqueCompanyName(value, field);
+  const data = await service.getUniqueCompanies(value, field);
 
   return res.json({
     status: 200,

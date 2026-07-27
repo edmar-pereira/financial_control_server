@@ -48,23 +48,23 @@ exports.updateCategory = async (data) => {
   }
 };
 
-exports.getUniqueCompanyName = async (value, field = 'companyName') => {
+
+exports.getUniqueCompanies = async (value) => {
   const query = {};
 
   if (value) {
-    query[field] = {
-      $regex: value,
-      $options: 'i',
-    };
+    query.$or = [
+      { fantasyName: { $regex: value, $options: 'i' } },
+      { companyName: { $regex: value, $options: 'i' } },
+    ];
+    
   }
 
-  const result = await categoryInfoService.distinct(field, query);
+  const result = await categoryInfoService
+    .find(query)
+    .select('fantasyName companyName -_id')
+    .sort({ fantasyName: 1 })
+    .lean();
 
-  return result
-    .filter((d) => d && d.trim() !== '')
-    .sort((a, b) =>
-      a.localeCompare(b, 'pt-BR', {
-        sensitivity: 'base',
-      }),
-    );
+  return result;
 };
