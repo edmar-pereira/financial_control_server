@@ -164,11 +164,6 @@ exports.parseBankSheet = async (buffer) => {
       if (!date) return null;
 
       // Fantasy name special cases
-
-
-
-
-console.log(type)
       const special = findSpecialRule(type);
 
       const fantasyName = special?.fantasyName ?? normalizeText(name || type);
