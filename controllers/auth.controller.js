@@ -13,8 +13,8 @@ exports.login = async (req, res) => {
   try {
       const hashedPassword = await bcrypt.hash(password, 10);
 
-    console.log('USER:', username);
-    console.log('PASSWORD HASH:', hashedPassword);
+    // console.log('USER:', username);
+    // console.log('PASSWORD HASH:', hashedPassword);
     const existingUser = await User.findOne({ user: username });
 
     

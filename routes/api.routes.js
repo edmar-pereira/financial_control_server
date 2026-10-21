@@ -42,6 +42,7 @@ router.use(async (req, _res, next) => {
 
 // Data
 // Data
+
 router.post('/data/getData', authMiddleware, getData);
 router.post('/data/create', authMiddleware, createData);
 router.get('/data/getById/:id', authMiddleware, getByIdData);
@@ -70,6 +71,8 @@ router.post('/upload', upload.single('file'), uploadData);
 
 // insert many
 router.post('/data/insertmany', authMiddleware, insertMany);
+
+
 
 router.get('/health', async (req, res) => {
   try {

@@ -1,197 +1,202 @@
 const XLSX = require('xlsx');
 const CategoryInfo = require('../../models/category.info.model');
-
 const { formatDateHeader } = require('../../utils/format');
-const { AcceptThisPattern, toPositiveBRL } = require('../../utils/format');
 const {
   checkForDuplicateTransactions,
 } = require('../../utils/checkForDuplicateTransactions');
 
+const normalizeText = (text = '') =>
+  String(text)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase();
+
+const toISODate = (date) => date.split('/').reverse().join('-');
+
+// "-R$ 1.234,56" -> -1234.56
+const parseAmount = (raw) => {
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+  if (raw == null) return null;
+
+  const clean = String(raw)
+    .replace(/R\$|\s/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+
+  const parsed = Number(clean);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+// A ordem importa: a primeira regra que bater vence.
+const PAYMENT_RULES = [
+  ['DEBITO', 'DEBITO'],
+  ['PIX ENVIADO', 'PIX ENVIADO'],
+  ['PIX AGENDADO', 'PIX ENVIADO'],
+  ['PIX RECEBIDO', 'PIX RECEBIDO'],
+  ['SAQUE', 'SAQUE'],
+  ['BOLETO', 'BOLETO'],
+  ['LIQUIDO DE VENCIMENTO', 'RECEITA'],
+  ['CNPJ 033372251000156', 'RECEITA'],
+  ['JUROS', 'JUROS'],
+  ['IOF', 'JUROS'],
+  ['REMUNERACAO', 'REMUNERACAO AUTOMATICA'], // antes de APLICACAO
+  ['APLICACAO', 'INVESTIMENTO'],
+  ['INVESTIMENTO', 'INVESTIMENTO'],
+];
+
+const SPECIAL_RULES = [
+  {
+    match: 'IOF ADICIONAL - AUTOMATICO',
+    fantasyName: 'IOF ADICIONAL',
+    companyName: 'IOF ADICIONAL',
+    categoryId: 'taxes_fees',
+  },
+    {
+    match: 'IOF IMPOSTO OPERACOES FINANCEIRAS',
+    fantasyName: 'IOF',
+    companyName: 'IOF',
+    categoryId: 'taxes_fees',
+  },
+      {
+    match: 'JUROS SALDO UTILIZ ATE LIMITE',
+    fantasyName: 'Cheque Especial',
+    companyName: 'Cheque Especial',
+    categoryId: 'taxes_fees',
+  },
+  {
+    match: 'SAQUE DINHEIRO',
+    fantasyName: 'SAQUE DINHEIRO BANCO 24H',
+    companyName: 'SAQUE DINHEIRO BANCO 24H',
+    categoryId: 'cash_withdrawal', // ajuste para o id que você usa
+  },
+];
+
+const findSpecialRule = (type) =>
+  SPECIAL_RULES.find((rule) => type.includes(normalizeText(rule.match)));
+
+const getPaymentType = (type) =>
+  PAYMENT_RULES.find(([term]) => type.includes(term))?.[1] || 'OUTROS';
+
+// "Debito visa electron brasil\n18/10 big bom supermercad"
+// -> { type, purchaseDate: "18/10", name }
+const splitDescription = (raw) => {
+  const [first = '', ...rest] = String(raw)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const detail = rest.join(' ');
+  const match = detail.match(/^(\d{2}\/\d{2})\s+(.+)$/);
+
+  return {
+    type: normalizeText(first),
+    purchaseDate: match ? match[1] : '',
+    name: normalizeText(match ? match[2] : detail),
+  };
+};
+
+const resolvePurchaseDate = (statementDate, purchaseDate) => {
+  if (!purchaseDate) return statementDate;
+
+  const [sDay, sMonth, sYear] = statementDate.split('/').map(Number);
+  const [pDay, pMonth] = purchaseDate.split('/').map(Number);
+
+  // Compra em dezembro lançada em janeiro: o ano é o anterior.
+  const purchaseIsAfterStatement =
+    pMonth > sMonth || (pMonth === sMonth && pDay > sDay);
+  const year = purchaseIsAfterStatement ? sYear - 1 : sYear;
+
+  return `${String(pDay).padStart(2, '0')}/${String(pMonth).padStart(2, '0')}/${year}`;
+};
+
+
 exports.parseBankSheet = async (buffer) => {
   const workbook = XLSX.read(buffer, { type: 'buffer' });
-  const sheetName = workbook.SheetNames[0];
-  const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
 
-  /* -------------------------------------------------
-     🔥 BUSCA DIRETO DO BANCO (SEM CACHE)
-  -------------------------------------------------- */
+  // Cada linha vira um array: [coluna A, coluna B, coluna C, coluna D]
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null });
+
+  // ---------- Período ----------
+  const periodRow = rows.find(
+    (row) => normalizeText(row[0]) === 'PERIODO DO EXTRATO'
+  );
+  const periodLabel = String(periodRow?.[1] ?? '').trim();
+  const periodMatch = periodLabel.match(
+    /^(\d{2}\/\d{2}\/\d{4})\s+a\s+(\d{2}\/\d{2}\/\d{4})$/i
+  );
+
+  const statement = {
+    periodStart: periodMatch ? toISODate(periodMatch[1]) : null,
+    periodEnd: periodMatch ? toISODate(periodMatch[2]) : null,
+    periodLabel: periodLabel || null,
+  };
+
+  // ---------- Lançamentos: tudo depois da linha "Data | Descrição" ----------
+  const headerIndex = rows.findIndex(
+    (row) =>
+      normalizeText(row[0]) === 'DATA' &&
+      normalizeText(row[1]) === 'DESCRICAO'
+  );
+  const dataRows = headerIndex === -1 ? [] : rows.slice(headerIndex + 1);
+
+  // ---------- Categorias ----------
   const categories = await CategoryInfo.find().lean();
+  const categoryMap = new Map(
+    categories.map((c) => [normalizeText(c.fantasyName), c])
+  );
 
-  const categoryMap = new Map();
-  categories.forEach((c) => {
-    categoryMap.set(c.fantasyName, c);
-  });
+  // ---------- Transações ----------
+  const formatted = dataRows
+    .map(([rawDate, rawDescription, rawValue]) => {
+      const dateText = String(rawDate ?? '').trim();
+      const amount = parseAmount(rawValue);
 
-  /* -------------------------------------------------
-     🔥 NORMALIZE PAYMENT TYPE
-  -------------------------------------------------- */
-  const normalizePaymentType = (rawType = '') => {
-    const type = rawType.toUpperCase();
+      if (!/^\d{2}\/\d{2}\/\d{4}$/.test(dateText)) return null;
+      if (!rawDescription || amount == null) return null;
 
-    if (type.includes('DEBITO')) return 'DEBITO';
-    if (type.includes('PIX ENVIADO')) return 'PIX ENVIADO';
-    if (type.includes('PIX RECEBIDO')) return 'PIX RECEBIDO';
-    if (type.includes('SAQUE')) return 'SAQUE';
-    if (type.includes('BOLETO')) return 'BOLETO';
-    if (type.includes('LIQUIDO DE VENCIMENTO')) return 'RECEITA';
-    if (type.includes('JUROS')) return 'JUROS';
-    if (type.includes('INVESTIMENTO')) return 'INVESTIMENTO';
-    if (type.includes('REMUNERACAO AUTOMATICA'))
-      return 'REMUNERACAO AUTOMATICA';
+      const { type, purchaseDate, name } = splitDescription(rawDescription);
+      if (!type) return null;
 
-    return 'OUTROS';
-  };
+      // Usa a data da compra (17/10) em vez da data do extrato (19/10)
+      const date = formatDateHeader(resolvePurchaseDate(dateText, purchaseDate));
+      if (!date) return null;
 
-  const splitMainType = (text = '') => {
-    const match = new RegExp(/^(.+?)\s{2,}(.+)$/).exec(text);
+      // Fantasy name special cases
 
-    let type = match ? match[1].trim() : text.trim();
-    let name = match ? match[2].trim() : '';
 
-    name = name.replace(/^\d{2}\/\d{2}\s+/, '');
-    name = name.trim().toUpperCase();
 
-    return { type, name };
-  };
 
-  const formatted = jsonData
-    .map((row) => {
-      if (!AcceptThisPattern(row['__EMPTY_1'])) return null;
+console.log(type)
+      const special = findSpecialRule(type);
 
-      const mainType = row['__EMPTY'] || '';
-      const headerDate = row['EXTRATO DE CONTA CORRENTE ']?.trim();
-      const parsedDate = formatDateHeader(headerDate);
+      const fantasyName = special?.fantasyName ?? normalizeText(name || type);
+      const categoryInfo = categoryMap.get(fantasyName);
 
-      const base = {
-        date: parsedDate,
-        fantasyName: '',
-        name: '',
-        description: '',
-        categoryId: '',
-        paymentType: '',
-        value: 0,
+      return {
+        date,
+        fantasyName,
+        name: special?.companyName ?? categoryInfo?.companyName ?? '',
+        description: '', // preenchido no client
+        categoryId: special?.categoryId ?? categoryInfo?.categoryId ?? 'uncategorized',
+        paymentType: getPaymentType(type),
+        value: Math.abs(amount),
         currentInstallment: 1,
         totalInstallment: 1,
       };
-
-      const buildResult = (fantasyName, paymentType, value) => {
-        const categoryInfo = categoryMap.get(fantasyName);
-
-        return {
-          ...base,
-          fantasyName,
-          name: categoryInfo?.companyName || '',
-          description: categoryInfo?.description || '',
-          categoryId: categoryInfo?.categoryId || 'uncategorized',
-          paymentType: normalizePaymentType(paymentType),
-          value,
-        };
-      };
-
-      /* --------------------------
-         REGRAS ESPECIAIS
-      --------------------------- */
-
-      if (mainType.includes('SAQUE DINHEIRO')) {
-        return buildResult(
-          'SAQUE DINHEIRO BANCO 24H',
-          'SAQUE',
-          Number.parseFloat(toPositiveBRL(row['__EMPTY_4'])),
-        );
-      }
-
-      if (mainType.includes('PIX ENVIADO')) {
-        const { name } = splitMainType(mainType);
-
-        return buildResult(
-          name,
-          'PIX ENVIADO',
-          Number.parseFloat(toPositiveBRL(row['__EMPTY_4'])),
-        );
-      }
-
-      if (mainType.includes('PIX RECEBIDO')) {
-        const { name } = splitMainType(mainType);
-
-        return buildResult(
-          name,
-          'PIX RECEBIDO',
-          Number.parseFloat(toPositiveBRL(row['__EMPTY_3'])),
-        );
-      }
-
-      if (mainType.includes('APLICACAO CDB/RDB')) {
-        return buildResult(
-          row['__EMPTY'],
-          'INVESTIMENTO',
-          Number.parseFloat(toPositiveBRL(row['__EMPTY_4'])),
-        );
-      }
-
-      if (mainType.includes('IOF ADICIONAL')) {
-        return buildResult(
-          'IOF ADICIONAL',
-          'JUROS',
-          Number.parseFloat(toPositiveBRL(row['__EMPTY_4'])),
-        );
-      }
-
-      if (mainType.includes('IOF IMPOSTO OPERACOES FINANCEIRAS')) {
-        return buildResult(
-          'IOF IMPOSTO OPERACOES FINANCEIRAS',
-          'JUROS',
-          Number.parseFloat(toPositiveBRL(row['__EMPTY_4'])),
-        );
-      }
-
-      if (mainType.includes('JUROS SALDO UTILIZ ATE LIMITE')) {
-        return buildResult(
-          'JUROS SALDO UTILIZ ATE LIMITE',
-          'JUROS',
-          Number.parseFloat(toPositiveBRL(row['__EMPTY_4'])),
-        );
-      }
-
-      if (mainType.includes('CNPJ 033372251000156')) {
-        const { name } = splitMainType(mainType);
-
-        return buildResult(
-          name,
-          'LIQUIDO DE VENCIMENTO',
-          Number.parseFloat(toPositiveBRL(row['__EMPTY_3'])),
-        );
-      }
-
-      if (mainType.includes('REMUNERACAO APLICACAO AUTOMATICA')) {
-        return buildResult(
-          row['__EMPTY'],
-          'REMUNERACAO AUTOMATICA',
-          Number.parseFloat(toPositiveBRL(row['__EMPTY_3'])),
-        );
-      }
-
-      /* --------------------------
-         REGRA PADRÃO
-      --------------------------- */
-
-      const { type, name } = splitMainType(mainType);
-
-      return buildResult(
-        name,
-        type,
-        Number.parseFloat(toPositiveBRL(row['__EMPTY_4'])),
-      );
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  formatted.sort((a, b) => new Date(a.date) - new Date(b.date));
+  const bankTransactions = await checkForDuplicateTransactions(formatted);
 
-  // console.log(JSON.stringify(formatted, null, 2));
-
-  const bankTransactions =
-    await checkForDuplicateTransactions(formatted);
-
-  // console.log(JSON.stringify(bankTransactions, null, 2));
-
-  return bankTransactions;
+  return {
+    statement,
+    summary: {
+      totalTransactions: formatted.length,
+      totalReturned: bankTransactions.length,
+    },
+    transactions: bankTransactions,
+  };
 };
