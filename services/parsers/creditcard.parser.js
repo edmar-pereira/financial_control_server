@@ -1,280 +1,186 @@
 // services/parsers/creditcard.parser.js
 
-const { parse } = require(
-  'csv-parse/sync',
-);
+const { parse } = require('csv-parse/sync');
 
-const {
-  toPositiveBRL,
-} = require('../../utils/format');
-
-const CategoryInfo = require(
-  '../../models/category.info.model',
-);
+const CategoryInfo = require('../../models/category.info.model');
 
 const {
   checkForDuplicateTransactions,
-} = require(
-  '../../utils/checkForDuplicateTransactions',
-);
+} = require('../../utils/checkForDuplicateTransactions');
 
-const {
-  moveTransactionToStatementMonth,
-} = require('../installmentCalc');
+/* -------------------------------------------------
+   HELPERS
+-------------------------------------------------- */
+
+// Remove BOM, colapsa espaços duplos/NBSP e põe em maiúsculas
+const normalizeName = (str = '') =>
+  String(str)
+    .replace(/^\ufeff/, '')
+    .replace(/[\s\u00a0]+/g, ' ')
+    .trim()
+    .toUpperCase();
+
+// "R$ -6.406,63" | "R$\u00a019,90" | "19,90" -> número positivo
+const parseBRLToPositive = (raw = '') => {
+  const cleaned = String(raw)
+    .replace(/[^\d,.-]/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+
+  const n = Number.parseFloat(cleaned);
+
+  return Number.isNaN(n) ? 0 : Math.abs(n);
+};
+
+// Detecta ; , ou TAB olhando só o cabeçalho
+const detectDelimiter = (csvString) => {
+  const header = csvString.replace(/^\ufeff/, '').split(/\r?\n/)[0] || '';
+
+  const semicolons = (header.match(/;/g) || []).length;
+  const commas = (header.match(/,/g) || []).length;
+  const tabs = (header.match(/\t/g) || []).length;
+
+  if (tabs > semicolons && tabs > commas) return '\t';
+
+  return semicolons >= commas ? ';' : ',';
+};
+
+// "dd/mm/yyyy" -> "yyyy-mm-dd" (ou null)
+const toISODate = (rawDate) => {
+  const match = String(rawDate || '')
+    .trim()
+    .match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+
+  if (!match) return null;
+
+  const [, day, month, year] = match;
+
+  return `${year}-${month}-${day}`;
+};
+
+// "3 de 12" -> true | "-" / "de 1" / vazio -> false
+const isInstallment = (parcelText) => {
+  const match = String(parcelText || '').match(/(\d+)\s*de\s*(\d+)/i);
+
+  if (!match) return false;
+
+  return Number.parseInt(match[2], 10) > 1;
+};
 
 /**
- * Faz parse do CSV do cartão
+ * Faz parse do CSV do cartão.
+ * Importa SOMENTE compras à vista; parceladas são lançadas manualmente.
+ * A data salva é a data real da compra.
+ * Retorna { transactions, skippedInstallments }.
  */
-exports.parseCreditCardSheet =
-  async (
-    buffer,
-    {
-      statementMonth,
-      statementYear,
-    },
-  ) => {
-    try {
-      /* -------------------------------------------------
-         CATEGORIAS
-      -------------------------------------------------- */
-      const categories =
-        await CategoryInfo.find().lean();
+exports.parseCreditCardSheet = async (buffer) => {
+  try {
+    /* -------------------------------------------------
+       CATEGORIAS
+    -------------------------------------------------- */
+    const categories = await CategoryInfo.find().lean();
 
-      const categoryMap =
-        new Map();
+    const categoryMap = new Map();
 
-      categories.forEach(
-        (category) => {
-          categoryMap.set(
-            category.fantasyName,
-            category,
-          );
-        },
-      );
+    categories.forEach((category) => {
+      categoryMap.set(normalizeName(category.fantasyName), category);
+    });
 
-      /* -------------------------------------------------
-         CSV
-      -------------------------------------------------- */
-      const csvString =
-        buffer.toString('utf-8');
+    /* -------------------------------------------------
+       CSV
+    -------------------------------------------------- */
+    const csvString = buffer.toString('utf-8');
 
-      const records = parse(
-        csvString,
-        {
-          columns: true,
-          delimiter: ';',
-          skip_empty_lines: true,
-          trim: true,
-        },
-      );
+    const records = parse(csvString, {
+      columns: (header) =>
+        header.map((h) => String(h).replace(/^\ufeff/, '').trim()),
+      delimiter: detectDelimiter(csvString),
+      skip_empty_lines: true,
+      trim: true,
+      bom: true,
+      relax_column_count: true,
+    });
 
-      /* -------------------------------------------------
-         RESULTADO
-      -------------------------------------------------- */
-      const parsedData = [];
+    /* -------------------------------------------------
+       LOOP
+    -------------------------------------------------- */
+    const parsedData = [];
 
-      /* -------------------------------------------------
-         LOOP
-      -------------------------------------------------- */
-      for (const row of records) {
-        let fantasyName =
-          row[
-            'Estabelecimento'
-          ]?.trim() || '';
+    const skippedInstallments = [];
 
-        /* ---------------------------
-           IGNORA FATURA
-        ---------------------------- */
-        if (
-          fantasyName ===
-          'Pagamento de fatura'
-        ) {
-          continue;
-        }
+    for (const row of records) {
+      const fantasyName = normalizeName(row['Estabelecimento']);
 
-        /* ---------------------------
-           NORMALIZA
-        ---------------------------- */
-        fantasyName =
-          fantasyName.toUpperCase();
-
-        /* ---------------------------
-           DATA ORIGINAL
-        ---------------------------- */
-        const rawDate =
-          row[
-            '\ufeffData'
-          ]?.trim() ||
-          row['Data']?.trim();
-
-        const [
-          day,
-          month,
-          year,
-        ] =
-          rawDate?.split('/') ||
-          [];
-
-        const purchaseDate =
-          year &&
-          month &&
-          day
-            ? `${year}-${month}-${day}`
-            : null;
-
-        if (!purchaseDate) {
-          continue;
-        }
-
-        /* ---------------------------
-           CATEGORIA
-        ---------------------------- */
-        const categoryInfo =
-          categoryMap.get(
-            fantasyName,
-          );
-
-        /* ---------------------------
-           PARCELAS
-        ---------------------------- */
-        let currentInstallment = 1;
-
-        let totalInstallment = 1;
-
-        const parcelText =
-          row[
-            'Parcela'
-          ]?.trim();
-
-        // ex: "3 de 12"
-        if (
-          parcelText?.includes(
-            'de',
-          )
-        ) {
-          const [
-            curr,
-            total,
-          ] = parcelText
-            .split('de')
-            .map((value) =>
-              Number.parseInt(
-                value.trim(),
-                10,
-              ),
-            );
-
-          if (
-            !Number.isNaN(
-              curr,
-            ) &&
-            !Number.isNaN(
-              total,
-            )
-          ) {
-            currentInstallment =
-              curr;
-
-            totalInstallment =
-              total;
-          }
-        }
-
-        /* ---------------------------
-           TRANSAÇÃO BASE
-        ---------------------------- */
-        const transaction = {
-          // DATA ORIGINAL
-          date: purchaseDate,
-
-          fantasyName,
-
-          name:
-            categoryInfo?.companyName ||
-            '',
-
-          description: '',
-
-          categoryId:
-            categoryInfo?.categoryId ||
-            'uncategorized',
-
-          paymentType:
-            'CREDITO',
-
-          value:
-            Number.parseFloat(
-              toPositiveBRL(
-                row['Valor'],
-              ),
-            ),
-
-          currentInstallment,
-
-          totalInstallment,
-
-          duplicated: false,
-        };
-
-        /* ---------------------------
-           GERA PARCELAS
-        ---------------------------- */
-        const installments =
-          moveTransactionToStatementMonth(
-            transaction,
-            statementYear,
-            statementMonth,
-          );
-
-        /* ---------------------------
-           ADICIONA
-        ---------------------------- */
-        if (
-          Array.isArray(
-            installments,
-          ) &&
-          installments.length >
-            0
-        ) {
-          parsedData.push(
-            ...installments,
-          );
-        }
+      // ignora vazios e pagamento de fatura
+      if (!fantasyName || fantasyName === 'PAGAMENTO DE FATURA') {
+        continue;
       }
 
-      /* -------------------------------------------------
-         ORDENA
-      -------------------------------------------------- */
-      parsedData.sort(
-        (a, b) => {
-          return (
-            new Date(
-              a.date,
-            ).getTime() -
-            new Date(
-              b.date,
-            ).getTime()
-          );
-        },
-      );
+      const purchaseDate = toISODate(row['Data']);
 
-      /* -------------------------------------------------
-         DUPLICIDADE
-      -------------------------------------------------- */
-      const creditCardTransactions =
-        await checkForDuplicateTransactions(
-          parsedData,
-        );
+      if (!purchaseDate) {
+        continue;
+      }
 
-      return creditCardTransactions;
-    } catch (error) {
-      console.error(
-        '❌ Error parsing credit card CSV:',
-        error,
-      );
+      // parceladas: não importa, apenas registra para avisar o usuário
+      if (isInstallment(row['Parcela'])) {
+        skippedInstallments.push({
+          date: purchaseDate,
+          fantasyName,
+          value: parseBRLToPositive(row['Valor']),
+          installment: String(row['Parcela']).trim(),
+        });
 
-      throw new Error(
-        'Failed to parse credit card CSV',
-      );
+        continue;
+      }
+
+      const categoryInfo = categoryMap.get(fantasyName);
+
+      parsedData.push({
+        date: purchaseDate,
+
+        fantasyName,
+
+        name: categoryInfo?.companyName || '',
+
+        description: '',
+
+        categoryId: categoryInfo?.categoryId || 'uncategorized',
+
+        paymentType: 'CREDITO',
+
+        value: parseBRLToPositive(row['Valor']),
+
+        currentInstallment: 1,
+
+        totalInstallment: 1,
+
+        duplicated: false,
+
+        originalPurchaseDate: purchaseDate,
+      });
     }
-  };
+
+    /* -------------------------------------------------
+       ORDENA
+    -------------------------------------------------- */
+    parsedData.sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    );
+
+    /* -------------------------------------------------
+       DUPLICIDADE
+    -------------------------------------------------- */
+    const transactions = await checkForDuplicateTransactions(parsedData);
+
+    skippedInstallments.sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    );
+
+    return { transactions, skippedInstallments };
+  } catch (error) {
+    console.error('❌ Error parsing credit card CSV:', error);
+
+    throw new Error('Failed to parse credit card CSV');
+  }
+};

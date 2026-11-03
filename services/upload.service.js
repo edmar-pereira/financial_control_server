@@ -11,26 +11,7 @@ exports.uploadFile = async ({ file, body }) => {
 
   // CSV = cartão
   if (mimetype.includes('csv')) {
-
-    const statementMonth = Number(body.statementMonth);
-    const statementYear = Number(body.statementYear);
-
-    // validações
-    if (!statementMonth || statementMonth < 1 || statementMonth > 12) {
-      return res.status(400).json({
-        error: 'Invalid statement month',
-      });
-    }
-
-    if (!statementYear || statementYear < 2000) {
-      return res.status(400).json({
-        error: 'Invalid statement year',
-      });
-    }
-    return await parseCreditCardSheet(file.buffer, {
-      statementMonth,
-      statementYear,
-    });
+    return await parseCreditCardSheet(file.buffer);
   }
 
   // Excel = banco
