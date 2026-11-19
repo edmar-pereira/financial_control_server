@@ -3,11 +3,11 @@ const { Schema } = mongoose;
 
 const schema = new Schema(
   {
-    // purchaseId: {
-    //   type: String,
-    //   required: true,
-    //   index: true,
-    // },
+    purchaseId: {
+      type: String,
+      index: true,
+      default: null, // registros antigos continuam válidos
+    },
 
     date: {
       type: Date,
@@ -77,17 +77,15 @@ const schema = new Schema(
   }
 );
 
-// Remove the old unique index!
-// schema.index({ currentInstallment: 1 }, { unique: true });
+// Impede parcela duplicada dentro da mesma compra.
+// O filtro parcial ignora registros antigos sem purchaseId.
 
-// schema.index(
-//   {
-//     purchaseId: 1,
-//     currentInstallment: 1,
-//   },
-//   {
-//     unique: true,
-//   }
-// );
+schema.index(
+  { purchaseId: 1, currentInstallment: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { purchaseId: { $type: 'string' } },
+  },
+);
 
 module.exports = mongoose.model('data', schema);

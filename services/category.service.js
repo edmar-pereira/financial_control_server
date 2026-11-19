@@ -1,70 +1,36 @@
-const service = require('../models/category.model');
-
-const categoryInfoService = require('../models/category.info.model');
+const Category = require('../models/category.model');
 
 exports.getCategory = async () => {
-  const data = await service.find();
+  const data = await Category.find().lean();
 
-  const result = data
-    .map((item) => ({
-      id: item.id,
-      label: item.label,
-      color: item.color,
-      maxValue: item.maxValue,
-    }))
+  return data
+    .map(({ id, label, color, maxValue }) => ({ id, label, color, maxValue }))
     .sort((a, b) => {
       if (a.id === 'all_categories') return -1;
       if (b.id === 'all_categories') return 1;
-      return 0;
+      return a.label.localeCompare(b.label, 'pt-BR', { sensitivity: 'base' });
     });
-
-  return result;
 };
 
-exports.updateCategory = async (data) => {
-  console.log(JSON.stringify(data));
+exports.updateCategory = async (items) => {
+  if (!Array.isArray(items) || !items.length) return { modifiedCount: 0 };
 
-  try {
-    const bulkOps = data.map((item) => ({
-      updateOne: {
-        filter: { _id: item.id },
-        update: {
-          $set: {
-            fantasyName: item.fantasyName,
-            companyName: item.companyName,
-            categoryId: item.categoryId,
-          },
-        },
-        upsert: false,
-      },
-    }));
+  const ops = items
+    .filter((item) => item?.id)
+    .map((item) => {
+      const $set = {};
+      if (item.maxValue !== undefined) $set.maxValue = Number(item.maxValue) || 0;
+      if (item.color !== undefined) $set.color = String(item.color).trim();
+      if (item.label !== undefined) $set.label = String(item.label).trim();
 
-    const result = await categoryInfoService.bulkWrite(bulkOps);
+      return {
+        updateOne: { filter: { id: item.id }, update: { $set }, upsert: false },
+      };
+    })
+    .filter((op) => Object.keys(op.updateOne.update.$set).length > 0);
 
-    return result;
-  } catch (error) {
-    console.error('Error updating collection:', error);
-    throw error;
-  }
-};
+  if (!ops.length) return { modifiedCount: 0 };
 
-
-exports.getUniqueCompanies = async (value) => {
-  const query = {};
-
-  if (value) {
-    query.$or = [
-      { fantasyName: { $regex: value, $options: 'i' } },
-      { companyName: { $regex: value, $options: 'i' } },
-    ];
-    
-  }
-
-  const result = await categoryInfoService
-    .find(query)
-    .select('fantasyName companyName -_id')
-    .sort({ fantasyName: 1 })
-    .lean();
-
-  return result;
+  const result = await Category.bulkWrite(ops);
+  return { modifiedCount: result.modifiedCount };
 };

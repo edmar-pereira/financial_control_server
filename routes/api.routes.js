@@ -16,11 +16,11 @@ const {
 const {
   getCategory,
   updateCategory,
+  updateCategoryInfo,
   getUniqueCompanyName,
   getAllCategoryInfo,
   deleteCategoryInfo,
 } = require('../controllers/category.controller');
-
 
 const { uploadData } = require('../controllers/upload.controller');
 const mongoose = require('mongoose');
@@ -41,8 +41,6 @@ router.use(async (req, _res, next) => {
 });
 
 // Data
-// Data
-
 router.post('/data/getData', authMiddleware, getData);
 router.post('/data/create', authMiddleware, createData);
 router.get('/data/getById/:id', authMiddleware, getByIdData);
@@ -60,19 +58,21 @@ router.get(
 // Category
 router.get('/category/getCategory', authMiddleware, getCategory);
 router.put('/category/updateCategory', authMiddleware, updateCategory);
+
+// Category info (cadastro de nome fantasia / empresa)
 router.get('/category/getAllCategoryInfo', authMiddleware, getAllCategoryInfo);
+router.put('/category/updateCategoryInfo', authMiddleware, updateCategoryInfo);
 router.delete(
   '/category/deleteCategoryInfo/:id',
   authMiddleware,
   deleteCategoryInfo,
 );
+
 // upload file
 router.post('/upload', upload.single('file'), uploadData);
 
 // insert many
 router.post('/data/insertmany', authMiddleware, insertMany);
-
-
 
 router.get('/health', async (req, res) => {
   try {

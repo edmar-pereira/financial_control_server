@@ -19,6 +19,28 @@ function toPositiveBRL(value) {
   return 0;
 }
 
+function addMonthsToDate(dateStr, monthsToAdd) {
+  // aceita 'YYYY-MM-DD' ou Date
+  const base =
+    dateStr instanceof Date
+      ? dateStr
+      : new Date(`${String(dateStr).slice(0, 10)}T00:00:00.000Z`);
+
+  const year = base.getUTCFullYear();
+  const month = base.getUTCMonth();
+  const day = base.getUTCDate();
+
+  // último dia do mês de destino
+  const lastDayOfTargetMonth = new Date(
+    Date.UTC(year, month + monthsToAdd + 1, 0),
+  ).getUTCDate();
+
+  // se o dia não existir no mês de destino (ex: 31), usa o último dia
+  const safeDay = Math.min(day, lastDayOfTargetMonth);
+
+  return new Date(Date.UTC(year, month + monthsToAdd, safeDay));
+}
+
 /* ---------------- QUERY HELPERS ---------------- */
 
 function buildQuery(
@@ -144,6 +166,7 @@ async function insertData(data) {
   }
 
   return DataModel.create({
+    purchaseId: data.purchaseId ?? null,
     date: data.date,
     fantasyName,
     name: data.name ?? '',
@@ -153,21 +176,27 @@ async function insertData(data) {
     value: toPositiveBRL(data.value),
     currentInstallment: data.currentInstallment ?? 1,
     totalInstallment: data.totalInstallment ?? 1,
+    ignore: data.ignore ?? false,
   });
 }
 
 exports.createData = async (data) => {
-  const total = data.totalInstallment ?? 1;
+  const total = Number(data.totalInstallment ?? 1);
+  const startInstallment = Number(data.currentInstallment ?? 1);
 
-  console.log(data)
+  // um único ID para todas as parcelas desta compra
+  const purchaseId = data.purchaseId ?? crypto.randomUUID();
 
   const docs = [];
 
-  for (let i = 0; i < total; i++) {
+  for (let i = startInstallment; i <= total; i++) {
     docs.push(
       await insertData({
         ...data,
-        currentInstallment: i + 1,
+        purchaseId,
+        currentInstallment: i,
+        totalInstallment: total,
+        date: addMonthsToDate(data.date, i - startInstallment),
       }),
     );
   }
