@@ -3,10 +3,9 @@ const service = require('../services/data.service');
 exports.getData = async (req, res) => {
   try {
     const data = await service.getData(req.body);
-
-    // console.log(JSON.stringify(data.expenses, null, 2));
     res.json({ data, status: 200 });
   } catch (err) {
+    console.error('getData error:', err);
     res.status(500).json({ error: err.message });
   }
 };

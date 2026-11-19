@@ -19,6 +19,12 @@ function toPositiveBRL(value) {
   return 0;
 }
 
+function toNumberOrNull(value) {
+  if (value === '' || value == null) return null;
+  const n = Number(value);
+  return Number.isNaN(n) ? null : n;
+}
+
 function addMonthsToDate(dateStr, monthsToAdd) {
   // aceita 'YYYY-MM-DD' ou Date
   const base =
@@ -73,7 +79,6 @@ function buildQuery(
       $gte: start,
       $lt: endExclusive,
     };
-
   }
 
   if (categoryIds?.length) {
@@ -93,16 +98,14 @@ function buildQuery(
     };
   }
 
-  if (valuesRange && (valuesRange.min != null || valuesRange.max != null)) {
+  const min = toNumberOrNull(valuesRange?.min);
+  const max = toNumberOrNull(valuesRange?.max);
+
+  if (min !== null || max !== null) {
     query.value = {};
 
-    if (valuesRange.min != null) {
-      query.value.$gte = Number(valuesRange.min);
-    }
-
-    if (valuesRange.max != null) {
-      query.value.$lte = Number(valuesRange.max);
-    }
+    if (min !== null) query.value.$gte = min;
+    if (max !== null) query.value.$lte = max;
   }
 
   return query;
@@ -149,19 +152,11 @@ exports.getData = async (params) => {
 async function insertData(data) {
   const fantasyName = data.fantasyName?.trim().toUpperCase();
 
-  // const computedDate = computeStatementDate(
-  //   data.date,
-  //   data.currentInstallment ?? 1,
-  // );
-
-  // const computedDate = '';
-
   if (fantasyName) {
     await createCategoryInfo({
       fantasyName,
       categoryId: data.categoryId,
       companyName: data.name ?? '',
-      // description: data.description ?? '',
     });
   }
 
@@ -265,7 +260,6 @@ exports.updateData = async (id, data) => {
       fantasyName: updated.fantasyName,
       categoryId: updated.categoryId,
       companyName: updated.name ?? '',
-      // description: updated.description ?? '',
     });
   }
 
